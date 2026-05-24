@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Producto — Casa Dam</title>
+  <meta name="description" content="Ficha de producto — Catálogo digital Casa Dam. Revestimientos, porcelanato, cerámicas y materiales de construcción.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/producto.js"></script>
+</head>
+<body>
+
+<div x-data="productDetail" x-init="init()">
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" role="banner" aria-label="Casa Dam">
+    <div class="hero__bg" style="background-image: url('assets/hero-img.jpg');"></div>
+    <div class="hero__overlay"></div>
+    <div class="hero__content">
+      <a href="index.html" class="hero__logo">
+        <img src="assets/CasaDamLogo.png" alt="Casa Dam — Volver al catálogo" class="hero__logo-img">
+      </a>
+      <h1 class="hero__title" x-text="product ? product.nombre : 'Catálogo de productos'"></h1>
+      <p class="hero__subtitle" x-show="!product">Explorá nuestra selección de revestimientos, porcelanatos y materiales de construcción</p>
+    </div>
+  </section>
+
+  <!-- ===== SEARCH BAR ===== -->
+  <div class="search-bar">
+    <div class="search-bar__inner">
+      <div class="search-bar__search" @click.outside="closeSearch()">
+        <svg class="search-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <label for="search-input" class="sr-only">Buscar productos</label>
+        <input
+          id="search-input"
+          type="search"
+          class="search-bar__input"
+          placeholder="Buscar por nombre..."
+          x-model="searchQuery"
+          x-ref="searchInput"
+          @keydown="onSearchKeydown($event)"
+          aria-label="Buscar por nombre del producto"
+          autocomplete="off"
+        >
+
+        <!-- Search dropdown -->
+        <div class="search-dropdown" x-show="searchOpen" x-transition.opacity.duration.150ms>
+          <template x-if="searchResults.length > 0">
+            <ul class="search-dropdown__list" role="listbox">
+              <template x-for="item in searchResults" :key="item.id">
+                <li class="search-dropdown__item" role="option" @click="goToProduct(item.id)">
+                  <span class="search-dropdown__name" x-text="item.nombre"></span>
+                  <span class="search-dropdown__code" x-text="item.codigo_interno"></span>
+                  <span class="search-dropdown__cat" x-text="item.categoria"></span>
+                </li>
+              </template>
+            </ul>
+          </template>
+          <template x-if="searchResults.length === 0 && searchQuery.trim()">
+            <div class="search-dropdown__empty">Sin resultados</div>
+          </template>
+        </div>
+      </div>
+
+      <label for="currency-select" class="sr-only">Seleccionar moneda</label>
+      <select
+        id="currency-select"
+        class="search-bar__currency"
+        x-model="moneda"
+        @change="setCurrency(moneda)"
+        aria-label="Moneda"
+      >
+        <option value="USD">USD</option>
+        <option value="COP">COP</option>
+        <option value="VES">VES</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ===== LOADING STATE ===== -->
+  <div class="product-skeleton" x-show="loading">
+    <div class="product-skeleton__inner">
+      <div class="product-skeleton__img"></div>
+      <div class="product-skeleton__info">
+        <div class="product-skeleton__line product-skeleton__line--short"></div>
+        <div class="product-skeleton__line product-skeleton__line--long"></div>
+        <div class="product-skeleton__line product-skeleton__line--med"></div>
+        <div class="product-skeleton__line product-skeleton__line--med"></div>
+        <div class="product-skeleton__line product-skeleton__line--med"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NOT FOUND ===== -->
+  <div class="empty-state" x-show="!loading && notFound" style="margin-top:3rem;">
+    <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <p class="empty-state__message">Producto no encontrado</p>
+    <p class="empty-state__hint">El producto que buscás no existe o fue removido</p>
+    <a href="index.html" class="btn-volver">Volver al catálogo</a>
+  </div>
+
+  <!-- ===== PRODUCT DETAIL ===== -->
+
+    <!-- Breadcrumb -->
+    <template x-if="!loading && !notFound && product">
+    <div class="breadcrumb-wrapper">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="index.html" class="breadcrumb__link">Catálogo</a>
+        <svg class="breadcrumb__sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <a :href="'index.html?categoria=' + encodeURIComponent(product.categoria)" class="breadcrumb__link" x-text="product.categoria"></a>
+        <svg class="breadcrumb__sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <span class="breadcrumb__current" x-text="product.nombre"></span>
+      </nav>
+    </div>
+    </template>
+
+    <!-- Product grid -->
+    <template x-if="!loading && !notFound && product">
+    <main class="product-detail" role="main">
+
+      <!-- Galería -->
+      <div class="product-gallery">
+        <div class="product-gallery__main"
+          @mouseenter="onMouseEnter($el)"
+          @mousemove="onMouseMove($event, $el)"
+          @mouseleave="onMouseLeave()"
+          @touchstart="onTouchStart($event)"
+          @touchend="onTouchEnd($event)"
+        >
+          <template x-for="(img, i) in imagenes" :key="i">
+            <img
+              :src="img.url"
+              :alt="'Imagen ' + (i + 1) + ' de ' + product.nombre"
+              class="product-gallery__img"
+              :class="{ 'product-gallery__img--visible': i === selectedImageIndex }"
+              loading="lazy"
+            >
+          </template>
+        </div>
+
+        <!-- Thumbnails (desktop) -->
+        <div class="product-gallery__thumbs" x-show="imagenes.length > 1">
+          <template x-for="(img, i) in imagenes" :key="i">
+            <button
+              class="product-gallery__thumb"
+              :class="{ 'product-gallery__thumb--active': i === selectedImageIndex }"
+              @click="selectImage(i)"
+              type="button"
+              :aria-label="'Ver imagen ' + (i + 1)"
+              :aria-current="i === selectedImageIndex ? 'true' : undefined"
+            >
+              <img :src="img.url" alt="" width="72" height="72" loading="lazy">
+            </button>
+          </template>
+        </div>
+
+        <!-- Dots (móvil) -->
+        <div class="product-gallery__dots" x-show="imagenes.length > 1">
+          <template x-for="(img, i) in imagenes" :key="'dot-' + i">
+            <button
+              class="product-gallery__dot"
+              :class="{ 'product-gallery__dot--active': i === selectedImageIndex }"
+              @click="selectImage(i)"
+              type="button"
+              :aria-label="'Ir a imagen ' + (i + 1)"
+            ></button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Información -->
+      <div class="product-info">
+        <div class="product-info__category" x-text="product.categoria + ' / ' + product.subcategoria"></div>
+
+        <h1 class="product-info__name" x-text="product.nombre"></h1>
+
+        <div class="product-info__code" x-text="'Código: ' + product.codigo_interno"></div>
+
+        <!-- Badges -->
+        <div class="product-info__badges">
+          <span class="badge badge--destacado" x-show="product.destacado">Destacado</span>
+          <span class="badge" :class="disponibilidadBadge.cls" x-text="disponibilidadBadge.text"></span>
+        </div>
+
+        <!-- Precio -->
+        <div class="product-info__price-block">
+          <template x-if="product.mostrar_precio">
+            <div>
+              <div class="product-info__price" x-text="formatPrice(product.precio_usd, true)"></div>
+              <div class="product-info__price-alt">
+                <template x-for="mon in otrasMonedas" :key="mon">
+                  <span class="product-info__price-alt-item" x-text="formatAltPrice(product.precio_usd, mon)"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+          <template x-if="!product.mostrar_precio">
+            <div class="product-info__consult">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              Consultar precio
+            </div>
+          </template>
+        </div>
+
+        <!-- Separador -->
+        <hr class="product-info__divider">
+
+        <!-- Especificaciones -->
+        <div class="specs">
+          <h2 class="specs__title">Especificaciones</h2>
+          <dl class="specs-table">
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Medidas</dt>
+              <dd class="specs-table__value" x-text="formatMeasures(product)"></dd>
+            </div>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Color</dt>
+              <dd class="specs-table__value" x-text="product.color"></dd>
+            </div>
+            <template x-if="product.acabado !== 'N/A'">
+              <div class="specs-table__row">
+                <dt class="specs-table__label">Acabado</dt>
+                <dd class="specs-table__value" x-text="product.acabado"></dd>
+              </div>
+            </template>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Material</dt>
+              <dd class="specs-table__value" x-text="product.material"></dd>
+            </div>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Uso recomendado</dt>
+              <dd class="specs-table__value" x-text="product.uso"></dd>
+            </div>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Marca</dt>
+              <dd class="specs-table__value" x-text="product.marca"></dd>
+            </div>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Piezas por caja</dt>
+              <dd class="specs-table__value" x-text="product.piezas_por_caja"></dd>
+            </div>
+            <div class="specs-table__row" x-show="product.m2_por_caja > 0">
+              <dt class="specs-table__label">m² por caja</dt>
+              <dd class="specs-table__value" x-text="product.m2_por_caja"></dd>
+            </div>
+            <div class="specs-table__row">
+              <dt class="specs-table__label">Peso por caja</dt>
+              <dd class="specs-table__value" x-text="product.peso + ' kg'"></dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Separador -->
+        <hr class="product-info__divider">
+
+        <!-- Descripción -->
+        <div class="specs">
+          <h2 class="specs__title">Descripción</h2>
+          <p class="product-info__desc" x-text="product.descripcion_larga"></p>
+        </div>
+      </div>
+    </main>
+    </template>
+
+    <!-- ===== PRODUCTOS RELACIONADOS ===== -->
+    <template x-if="!loading && !notFound && product && relatedProducts.length > 0">
+    <section class="related-products" aria-label="Productos relacionados">
+      <h2 class="related-products__title">Productos relacionados</h2>
+      <div class="related-products__grid">
+        <template x-for="rp in relatedProducts" :key="rp.id">
+          <a :href="relatedProductUrl(rp)" class="product-card">
+            <div class="product-card__image-wrapper">
+              <img
+                class="product-card__image"
+                :src="rp.imagenes[0].url"
+                :alt="'Producto ' + rp.nombre"
+                loading="lazy"
+              >
+              <span class="product-card__badge product-card__badge--destacado" x-show="showDestacadoBadge(rp)">Destacado</span>
+              <span class="product-card__badge product-card__badge--no-disponible" x-show="showNoDisponibleBadge(rp)">No disponible</span>
+            </div>
+            <div class="product-card__body">
+              <div class="product-card__name" x-text="rp.nombre"></div>
+              <div class="product-card__code" x-text="'Cód. ' + rp.codigo_interno"></div>
+              <div class="product-card__measures" x-text="formatMeasures(rp)"></div>
+              <template x-if="rp.mostrar_precio">
+                <div class="product-card__price" x-text="formatPrice(rp.precio_usd, true)"></div>
+              </template>
+              <template x-if="!rp.mostrar_precio">
+                <div class="product-card__price--consult">Consultar precio</div>
+              </template>
+            </div>
+          </a>
+        </template>
+      </div>
+    </section>
+    </template>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer" role="contentinfo">
+    <div class="footer__brand">Casa Dam</div>
+    <div class="footer__slogan">Vivimos contigo</div>
+    <div class="footer__copy" x-text="'© ' + new Date().getFullYear() + ' Casa Dam. Todos los derechos reservados.'"></div>
+  </footer>
+</div>
+
+<script src="js/animations.js"></script>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casa Dam — Catálogo de productos</title>
+  <meta name="description" content="Catálogo digital de revestimientos, porcelanato, cerámicas y materiales de construcción. Casa Dam: Vivimos contigo.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+
+<div x-data="catalog" x-init="init()">
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" role="banner" aria-label="Casa Dam">
+    <div class="hero__bg" style="background-image: url('assets/hero-img.jpg');"></div>
+    <div class="hero__overlay"></div>
+    <div class="hero__content">
+      <div class="hero__logo">
+        <img src="assets/CasaDamLogo.png" alt="Casa Dam" class="hero__logo-img">
+      </div>
+      <h1 class="hero__title">Catálogo de productos</h1>
+      <p class="hero__subtitle">Explorá nuestra selección de revestimientos, porcelanatos y materiales de construcción</p>
+    </div>
+  </section>
+
+  <!-- ===== SEARCH BAR ===== -->
+  <div class="search-bar">
+    <div class="search-bar__inner">
+      <div class="search-bar__search">
+        <svg class="search-bar__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <label for="search-input" class="sr-only">Buscar productos</label>
+        <input
+          id="search-input"
+          type="search"
+          class="search-bar__input"
+          placeholder="Buscar por nombre..."
+          x-model.debounce.200ms="searchQuery"
+          @keyup="currentPage = 1"
+          aria-label="Buscar por nombre del producto"
+        >
+      </div>
+      <label for="currency-select" class="sr-only">Seleccionar moneda</label>
+      <select
+        id="currency-select"
+        class="search-bar__currency"
+        x-model="currency"
+        aria-label="Moneda"
+      >
+        <option value="USD">USD</option>
+        <option value="COP">COP</option>
+        <option value="VES">VES</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Botón de filtros (visible solo en móvil) -->
+  <div class="catalog" style="display:block;padding:0.75rem 1.25rem 0;">
+    <button
+      class="mobile-filter-toggle"
+      @click="toggleMobileFilters()"
+      aria-label="Abrir panel de filtros"
+      aria-expanded="false"
+      :aria-expanded="mobileFiltersOpen"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="4" y1="6" x2="20" y2="6"></line>
+        <line x1="8" y1="12" x2="20" y2="12"></line>
+        <line x1="12" y1="18" x2="20" y2="18"></line>
+      </svg>
+      Filtros
+      <template x-if="hasActiveFilters">
+        <span x-text="'(' + filteredProducts.length + ')'" style="font-size:0.75rem;color:#ed1b23;"></span>
+      </template>
+    </button>
+  </div>
+
+  <!-- Overlay del panel de filtros (solo visible en móvil) -->
+  <div
+    class="filter-overlay"
+    x-show="mobileFiltersOpen"
+    @click="closeMobileFilters()"
+    aria-hidden="true"
+  ></div>
+
+  <!-- ===== CATÁLOGO PRINCIPAL ===== -->
+  <main class="catalog" role="main">
+
+    <!-- SIDEBAR: panel de filtros (sticky en desktop, slide-in en móvil) -->
+    <aside
+      class="sidebar"
+      :class="{ 'sidebar--mobile-open': mobileFiltersOpen }"
+      role="complementary"
+      aria-label="Filtros de productos"
+    >
+      <!-- Header solo visible en móvil -->
+      <div class="mobile-filter-header">
+        <span class="mobile-filter-header__title">Filtros</span>
+        <button
+          class="mobile-filter-header__close"
+          @click="closeMobileFilters()"
+          aria-label="Cerrar filtros"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido de filtros -->
+      <div class="filter-panel">
+        <div class="filter-panel__header">
+          <span class="filter-panel__title">Filtros</span>
+          <button
+            class="filter-panel__clear"
+            @click="clearFilters()"
+            x-show="hasActiveFilters"
+            aria-label="Limpiar todos los filtros"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+
+        <!-- ==================== -->
+        <!-- FILTROS INSTANTÁNEOS -->
+        <!-- ==================== -->
+
+        <!-- Categoría (abierto por defecto) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('categoria')" aria-label="Categoría">
+            <span class="filter-group__header-text">Categoría</span>
+            <span x-show="!accordion.categoria && countActiveCategorias()" class="filter-group__badge" x-text="'(' + countActiveCategorias() + ')'"></span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.categoria }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.categoria }">
+            <div class="filter-group__body-inner">
+              <div class="filter-group__list" role="group" aria-label="Filtrar por categoría">
+                <template x-for="cat in categorias" :key="cat">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      class="checkbox-label__input"
+                      :value="cat"
+                      :checked="filters.categories.includes(cat)"
+                      @change="toggleCategory(cat)"
+                    >
+                    <span x-text="cat"></span>
+                    <span class="checkbox-label__count" x-text="'(' + countByCategory(cat) + ')'"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Uso (cerrado por defecto) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('uso')" aria-label="Uso">
+            <span class="filter-group__header-text">Uso</span>
+            <span x-show="!accordion.uso && countActiveUsos()" class="filter-group__badge" x-text="'(' + countActiveUsos() + ')'"></span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.uso }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.uso }">
+            <div class="filter-group__body-inner">
+              <div class="filter-group__list" role="group" aria-label="Filtrar por uso">
+                <template x-for="uso in usos" :key="uso">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      class="checkbox-label__input"
+                      :value="uso"
+                      :checked="filters.usos.includes(uso)"
+                      @change="toggleUso(uso)"
+                    >
+                    <span x-text="uso"></span>
+                    <span class="checkbox-label__count" x-text="'(' + countByUso(uso) + ')'"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Acabado (cerrado por defecto) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('acabado')" aria-label="Acabado">
+            <span class="filter-group__header-text">Acabado</span>
+            <span x-show="!accordion.acabado && countActiveAcabados()" class="filter-group__badge" x-text="'(' + countActiveAcabados() + ')'"></span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.acabado }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.acabado }">
+            <div class="filter-group__body-inner">
+              <div class="filter-group__list" role="group" aria-label="Filtrar por acabado">
+                <template x-for="acab in acabados" :key="acab">
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      class="checkbox-label__input"
+                      :value="acab"
+                      :checked="filters.acabados.includes(acab)"
+                      @change="toggleAcabado(acab)"
+                    >
+                    <span x-text="acab"></span>
+                    <span class="checkbox-label__count" x-text="'(' + countByAcabado(acab) + ')'"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Color (cerrado por defecto) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('color')" aria-label="Color">
+            <span class="filter-group__header-text">Color</span>
+            <span x-show="!accordion.color && countActiveColores()" class="filter-group__badge" x-text="'(' + countActiveColores() + ')'"></span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.color }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.color }">
+            <div class="filter-group__body-inner">
+              <div class="filter-group__list" role="group" aria-label="Filtrar por color">
+                <template x-for="col in colores" :key="col">
+                  <label class="checkbox-label checkbox-label--color">
+                    <input
+                      type="checkbox"
+                      class="checkbox-label__input"
+                      :value="col"
+                      :checked="filters.colores.includes(col)"
+                      @change="toggleColor(col)"
+                    >
+                    <span class="color-swatch" :style="{ backgroundColor: colorSwatchStyle(col) }"></span>
+                    <span x-text="col"></span>
+                    <span class="checkbox-label__count" x-text="'(' + countByColor(col) + ')'"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- =================================== -->
+        <!-- FILTROS AVANZADOS (requieren aplicar) -->
+        <!-- =================================== -->
+
+        <!-- Disponibilidad (cerrado) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('disponibilidad')" aria-label="Disponibilidad">
+            <span class="filter-group__header-text">Disponibilidad</span>
+            <span x-show="!accordion.disponibilidad && hasActiveDisponibilidad()" class="filter-group__badge">(1)</span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.disponibilidad }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.disponibilidad }">
+            <div class="filter-group__body-inner">
+              <label class="toggle-label" aria-label="Mostrar solo productos disponibles">
+                <span>Solo disponibles</span>
+                <input
+                  type="checkbox"
+                  class="sr-only"
+                  x-model="advancedPending.soloDisponibles"
+                >
+                <span class="toggle-switch"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Precio (cerrado) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('precio')" aria-label="Precio">
+            <span class="filter-group__header-text">Precio (USD)</span>
+            <span x-show="!accordion.precio && hasActivePrecio()" class="filter-group__badge">(1)</span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.precio }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.precio }">
+            <div class="filter-group__body-inner">
+              <div class="number-input-group">
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="precio-min">Precio mín</label>
+                  <input
+                    id="precio-min"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    step="1"
+                    x-model="advancedPending.precioMin"
+                  >
+                </div>
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="precio-max">Precio máx</label>
+                  <input
+                    id="precio-max"
+                    type="number"
+                    placeholder="—"
+                    min="0"
+                    step="1"
+                    x-model="advancedPending.precioMax"
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Medidas (cerrado) -->
+        <div class="filter-group">
+          <button class="filter-group__header" @click="toggleAccordion('medidas')" aria-label="Medidas">
+            <span class="filter-group__header-text">Medidas (cm)</span>
+            <span x-show="!accordion.medidas && hasActiveMedidas()" class="filter-group__badge">(1)</span>
+            <svg class="filter-group__chevron" :class="{ 'filter-group__chevron--open': accordion.medidas }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="filter-group__body" :class="{ 'filter-group__body--collapsed': !accordion.medidas }">
+            <div class="filter-group__body-inner">
+              <div class="number-input-group">
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="ancho-min">Ancho mín</label>
+                  <input
+                    id="ancho-min"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    step="0.1"
+                    x-model="advancedPending.anchoMin"
+                  >
+                </div>
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="ancho-max">Ancho máx</label>
+                  <input
+                    id="ancho-max"
+                    type="number"
+                    placeholder="-"
+                    min="0"
+                    step="0.1"
+                    x-model="advancedPending.anchoMax"
+                  >
+                </div>
+              </div>
+              <div class="number-input-group" style="margin-top:0.5rem;">
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="largo-min">Largo mín</label>
+                  <input
+                    id="largo-min"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    step="0.1"
+                    x-model="advancedPending.largoMin"
+                  >
+                </div>
+                <div class="number-input-wrapper">
+                  <label class="number-input-wrapper__label" for="largo-max">Largo máx</label>
+                  <input
+                    id="largo-max"
+                    type="number"
+                    placeholder="-"
+                    min="0"
+                    step="0.1"
+                    x-model="advancedPending.largoMax"
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón Aplicar filtros avanzados -->
+        <div class="filter-apply-bar">
+          <button
+            class="filter-apply-btn"
+            :class="{ 'filter-apply-btn--pending': hasPendingAdvanced }"
+            @click="applyAdvancedFilters()"
+            :disabled="!hasPendingAdvanced"
+          >
+            Aplicar filtros
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <div class="main-area">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <span class="toolbar__count">
+          <strong x-text="filteredProducts.length"></strong> producto(s) encontrado(s)
+        </span>
+
+        <div class="toolbar__sort">
+          <label for="sort-select" class="toolbar__sort-label">Ordenar por:</label>
+          <select
+            id="sort-select"
+            class="toolbar__sort-select"
+            x-model="sortBy"
+            @change="onSortChange()"
+            aria-label="Ordenar productos"
+          >
+            <option value="relevancia">Relevancia</option>
+            <option value="precio-asc">Precio: menor a mayor</option>
+            <option value="precio-desc">Precio: mayor a menor</option>
+            <option value="alfabetico">Alfabético A-Z</option>
+            <option value="recientes">Más recientes</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Product grid -->
+      <div class="product-grid" role="list" aria-label="Lista de productos" x-ref="productGrid">
+        <template x-for="product in paginatedProducts" :key="product.id">
+          <a
+            :href="productUrl(product)"
+            class="product-card"
+            role="listitem"
+          >
+            <div class="product-card__image-wrapper">
+              <img
+                class="product-card__image"
+                :src="product.imagenes[0].url"
+                :alt="'Producto ' + product.nombre"
+                loading="lazy"
+              >
+              <span
+                class="product-card__badge product-card__badge--destacado"
+                x-show="showDestacadoBadge(product)"
+              >
+                Destacado
+              </span>
+              <span
+                class="product-card__badge product-card__badge--no-disponible"
+                x-show="showNoDisponibleBadge(product)"
+              >
+                No disponible
+              </span>
+            </div>
+            <div class="product-card__body">
+              <div class="product-card__name" x-text="product.nombre"></div>
+              <div class="product-card__code" x-text="'Cód. ' + product.codigo_interno"></div>
+              <div class="product-card__measures" x-text="formatMeasures(product)"></div>
+              <template x-if="product.mostrar_precio">
+                <div class="product-card__price" x-text="formatPrice(product.precio_usd, product.mostrar_precio)"></div>
+              </template>
+              <template x-if="!product.mostrar_precio">
+                <div class="product-card__price--consult">Consultar precio</div>
+              </template>
+            </div>
+          </a>
+        </template>
+      </div>
+
+      <!-- Estado vacío -->
+      <div class="empty-state" x-show="filteredProducts.length === 0">
+        <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        <p class="empty-state__message">No encontramos productos con esos filtros</p>
+        <p class="empty-state__hint">Probá ajustando los criterios de búsqueda o limpiando los filtros</p>
+      </div>
+
+      <!-- Paginación -->
+      <nav
+        class="pagination"
+        x-show="totalPages > 1"
+        role="navigation"
+        aria-label="Paginación de productos"
+      >
+        <button
+          class="pagination__btn"
+          @click="prevPage()"
+          :disabled="currentPage === 1"
+          aria-label="Página anterior"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <template x-for="page in pages" :key="page">
+          <template x-if="page === '...'">
+            <span class="pagination__ellipsis">...</span>
+          </template>
+          <template x-if="page !== '...'">
+            <button
+              class="pagination__btn"
+              :class="{ 'pagination__btn--active': page === currentPage }"
+              @click="goToPage(page)"
+              x-text="page"
+              :aria-label="'Ir a página ' + page"
+              :aria-current="page === currentPage ? 'page' : undefined"
+            ></button>
+          </template>
+        </template>
+
+        <button
+          class="pagination__btn"
+          @click="nextPage()"
+          :disabled="currentPage === totalPages"
+          aria-label="Página siguiente"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </nav>
+    </div>
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer" role="contentinfo">
+    <div class="footer__brand">Casa Dam</div>
+    <div class="footer__slogan">Vivimos contigo</div>
+    <div class="footer__copy" x-text="'© ' + new Date().getFullYear() + ' Casa Dam. Todos los derechos reservados.'"></div>
+  </footer>
+</div>
+
+<script src="js/animations.js"></script>
+</body>
+</html>
