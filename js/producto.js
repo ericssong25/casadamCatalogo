@@ -43,52 +43,54 @@ document.addEventListener('alpine:init', () => {
 
     async _loadFromSupabase(id) {
       try {
-        const supabase = window.supabaseClient;
+        var supabase = window.supabaseClient;
         if (!supabase) throw new Error('Supabase not available');
 
-        const [prodRes, allRes, catRes, confRes] = await Promise.all([
+        var _a = await Promise.all([
           supabase.from('productos').select('*, producto_imagenes(*)').eq('id', id).single(),
           supabase.from('productos').select('*, producto_imagenes(*)').order('nombre'),
           supabase.from('categorias').select('id, nombre').eq('activa', true),
           supabase.from('configuracion').select('*').single()
         ]);
+        var prodRes = _a[0], allRes = _a[1], catRes = _a[2], confRes = _a[3];
 
         if (prodRes.error || !prodRes.data) throw new Error('Producto no encontrado');
 
-        const catMap = {};
-        (catRes.data || []).forEach(c => { catMap[c.id] = c.nombre; });
+        var catMap = {};
+        (catRes.data || []).forEach(function (c) { catMap[c.id] = c.nombre; });
 
-        const mapProduct = (p) => ({
-          id: p.id,
-          codigo_interno: p.codigo_interno,
-          nombre: p.nombre,
-          descripcion_larga: p.descripcion_larga || '',
-          categoria: catMap[p.categoria_id] || p.categoria_id,
-          subcategoria: p.subcategoria_id || '',
-          ancho: parseFloat(p.ancho) || 0,
-          largo: parseFloat(p.largo) || 0,
-          espesor: parseFloat(p.espesor) || 0,
-          unidad_medida: p.unidad_medida || 'cm',
-          color: p.color || '',
-          acabado: p.acabado || '',
-          material: p.material || '',
-          uso: p.uso || 'Ambos',
-          marca: p.marca || '',
-          m2_por_caja: parseFloat(p.m2_por_caja) || 0,
-          piezas_por_caja: p.piezas_por_caja || 0,
-          peso: parseFloat(p.peso) || 0,
-          precio_usd: parseFloat(p.precio_usd) || 0,
-          mostrar_precio: p.mostrar_precio !== false,
-          disponible: p.disponible !== false,
-          destacado: p.destacado === true,
-          imagenes: (p.producto_imagenes || []).map(img => ({
-            url: img.url,
-            es_principal: img.es_principal
-          }))
-        });
+        function mapProduct(p) {
+          return {
+            id: p.id,
+            codigo_interno: p.codigo_interno,
+            nombre: p.nombre,
+            descripcion_larga: p.descripcion_larga || '',
+            categoria: catMap[p.categoria_id] || p.categoria_id,
+            subcategoria: p.subcategoria_id || '',
+            ancho: parseFloat(p.ancho) || 0,
+            largo: parseFloat(p.largo) || 0,
+            espesor: parseFloat(p.espesor) || 0,
+            unidad_medida: p.unidad_medida || 'cm',
+            color: p.color || '',
+            acabado: p.acabado || '',
+            material: p.material || '',
+            uso: p.uso || 'Ambos',
+            marca: p.marca || '',
+            m2_por_caja: parseFloat(p.m2_por_caja) || 0,
+            piezas_por_caja: p.piezas_por_caja || 0,
+            peso: parseFloat(p.peso) || 0,
+            precio_usd: parseFloat(p.precio_usd) || 0,
+            mostrar_precio: p.mostrar_precio !== false,
+            disponible: p.disponible !== false,
+            destacado: p.destacado === true,
+            imagenes: (p.producto_imagenes || []).map(function (img) {
+              return { url: img.url, es_principal: img.es_principal };
+            })
+          };
+        }
 
         this.allProducts = (allRes.data || []).map(mapProduct);
-        this.product = this.allProducts.find(p => p.id === id);
+        this.product = this.allProducts.find(function (p) { return p.id === id; });
         if (!this.product) { this.notFound = true; return; }
 
         document.title = this.product.nombre + ' — Casa Dam';
@@ -101,10 +103,13 @@ document.addEventListener('alpine:init', () => {
             cop: parseFloat(confRes.data.tasa_cop_usd) || 4200,
             ves: parseFloat(confRes.data.tasa_ves_usd) || 36.50
           };
+          try {
+            sessionStorage.setItem('cdam_rates', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
+          } catch (e) {}
         }
       } catch (e) {
         console.error('Supabase fallback:', e.message);
-        this.product = (window.PRODUCTOS || []).find(p => p.id === id);
+        this.product = (window.PRODUCTOS || []).find(function (p) { return p.id === id; });
         this.allProducts = window.PRODUCTOS || [];
         if (!this.product) { this.notFound = true; return; }
         document.title = this.product.nombre + ' — Casa Dam';

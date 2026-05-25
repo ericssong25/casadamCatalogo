@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="css/styles.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/producto.js"></script>
 </head>
 <body>
@@ -28,7 +28,7 @@
         <img src="assets/CasaDamLogo.png" alt="Casa Dam — Volver al catálogo" class="hero__logo-img">
       </a>
       <h1 class="hero__title" x-text="product ? product.nombre : 'Catálogo de productos'"></h1>
-      <p class="hero__subtitle" x-show="!product">Explorá nuestra selección de revestimientos, porcelanatos y materiales de construcción</p>
+      <p class="hero__subtitle" x-show="!product">Explora nuestra selección de revestimientos, porcelanatos y materiales de construcción</p>
     </div>
   </section>
 

@@ -57,57 +57,94 @@ document.addEventListener('alpine:init', () => {
     // === Inicialización ===
     async init() {
       this._loadCurrencyPref();
+      var cached = this._loadFromCache();
+      if (cached) {
+        this.products = cached.products;
+        this.loadingData = false;
+        this._calcPriceRange();
+        this._readURLParams();
+      }
       await this._loadFromSupabase();
-      this._calcPriceRange();
-      this._readURLParams();
-      this.loadingData = false;
+      if (!cached) {
+        this._calcPriceRange();
+        this._readURLParams();
+        this.loadingData = false;
+      }
+    },
+
+    _saveToCache() {
+      try {
+        var data = { products: this.products, ts: Date.now() };
+        sessionStorage.setItem('cdam_products', JSON.stringify(data));
+      } catch (e) {}
+    },
+
+    _loadFromCache() {
+      try {
+        var raw = sessionStorage.getItem('cdam_products');
+        if (!raw) return null;
+        var data = JSON.parse(raw);
+        if (Date.now() - data.ts > 5 * 60 * 1000) return null; // 5 min TTL
+        return data;
+      } catch (e) { return null; }
     },
 
     async _loadFromSupabase() {
       try {
-        const supabase = window.supabaseClient;
-        if (!supabase) { throw new Error('Supabase not available'); }
+        var supabase = window.supabaseClient;
+        if (!supabase) throw new Error('Supabase not available');
 
-        const [prodRes, catRes, confRes] = await Promise.all([
-          supabase.from('productos').select('*, producto_imagenes(*)').order('nombre'),
-          supabase.from('categorias').select('id, nombre').eq('activa', true),
-          supabase.from('configuracion').select('*').single()
-        ]);
+        var prodQ = supabase.from('productos').select('*, producto_imagenes(url, es_principal, orden)').order('nombre');
+        var catQ = supabase.from('categorias').select('id, nombre').eq('activa', true);
+        var confQ = supabase.from('configuracion').select('*').single();
+
+        try {
+          var cachedRates = sessionStorage.getItem('cdam_rates');
+          if (cachedRates) {
+            var r = JSON.parse(cachedRates);
+            if (Date.now() - r.ts < 5 * 60 * 1000) {
+              window.TASAS_CAMBIO = r.rates;
+            }
+          }
+        } catch (e) {}
+
+        var _a = await Promise.all([prodQ, catQ, confQ]);
+        var prodRes = _a[0], catRes = _a[1], confRes = _a[2];
 
         if (prodRes.error) throw prodRes.error;
-        if (catRes.error) throw catRes.error;
 
-        const catMap = {};
-        (catRes.data || []).forEach(c => { catMap[c.id] = c.nombre; });
+        var catMap = {};
+        (catRes.data || []).forEach(function (c) { catMap[c.id] = c.nombre; });
 
-        this.products = (prodRes.data || []).map(p => ({
-          id: p.id,
-          codigo_interno: p.codigo_interno,
-          nombre: p.nombre,
-          descripcion_larga: p.descripcion_larga || '',
-          categoria: catMap[p.categoria_id] || p.categoria_id,
-          subcategoria: p.subcategoria_id || '',
-          ancho: parseFloat(p.ancho) || 0,
-          largo: parseFloat(p.largo) || 0,
-          espesor: parseFloat(p.espesor) || 0,
-          unidad_medida: p.unidad_medida || 'cm',
-          color: p.color || '',
-          acabado: p.acabado || '',
-          material: p.material || '',
-          uso: p.uso || 'Ambos',
-          marca: p.marca || '',
-          m2_por_caja: parseFloat(p.m2_por_caja) || 0,
-          piezas_por_caja: p.piezas_por_caja || 0,
-          peso: parseFloat(p.peso) || 0,
-          precio_usd: parseFloat(p.precio_usd) || 0,
-          mostrar_precio: p.mostrar_precio !== false,
-          disponible: p.disponible !== false,
-          destacado: p.destacado === true,
-          imagenes: (p.producto_imagenes || []).map(img => ({
-            url: img.url,
-            es_principal: img.es_principal
-          }))
-        }));
+        this.products = (prodRes.data || []).map(function (p) {
+          return {
+            id: p.id,
+            codigo_interno: p.codigo_interno,
+            nombre: p.nombre,
+            descripcion_larga: p.descripcion_larga || '',
+            categoria: catMap[p.categoria_id] || p.categoria_id,
+            subcategoria: p.subcategoria_id || '',
+            ancho: parseFloat(p.ancho) || 0,
+            largo: parseFloat(p.largo) || 0,
+            espesor: parseFloat(p.espesor) || 0,
+            unidad_medida: p.unidad_medida || 'cm',
+            color: p.color || '',
+            acabado: p.acabado || '',
+            material: p.material || '',
+            uso: p.uso || 'Ambos',
+            marca: p.marca || '',
+            m2_por_caja: parseFloat(p.m2_por_caja) || 0,
+            piezas_por_caja: p.piezas_por_caja || 0,
+            peso: parseFloat(p.peso) || 0,
+            precio_usd: parseFloat(p.precio_usd) || 0,
+            mostrar_precio: p.mostrar_precio !== false,
+            disponible: p.disponible !== false,
+            destacado: p.destacado === true,
+            imagenes: (p.producto_imagenes || []).map(function (img) {
+              return { url: img.url, es_principal: img.es_principal };
+            })
+          };
+        });
 
         if (confRes.data) {
           window.TASAS_CAMBIO = {
@@ -115,10 +152,19 @@ document.addEventListener('alpine:init', () => {
             cop: parseFloat(confRes.data.tasa_cop_usd) || 4200,
             ves: parseFloat(confRes.data.tasa_ves_usd) || 36.50
           };
+          try {
+            sessionStorage.setItem('cdam_rates', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
+          } catch (e) {}
         }
+
+        this.loadingData = false;
+        this._saveToCache();
       } catch (e) {
-        console.error('Supabase fallback a datos mockup:', e.message);
-        this.products = window.PRODUCTOS || [];
+        console.error('Supabase fallback:', e.message);
+        if (!this.products.length) {
+          this.products = window.PRODUCTOS || [];
+        }
+        this.loadingData = false;
       }
     },
 

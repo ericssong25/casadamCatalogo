@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casa Dam — Panel Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/categorias.js"></script>
+  <script src="js/productos.js"></script>
+  <script src="js/configuracion.js"></script>
+</head>
+<body>
+
+<div x-data="panel" x-init="init()" class="panel"
+  @change-section.window="changeSection($event.detail)"
+  @admin-toast.window="showToast($event.detail.text, $event.detail.type)"
+  @open-product-edit.window="openProductFromDashboard($event.detail, 'edit')"
+  @open-product-view.window="openProductFromDashboard($event.detail, 'view')">
+
+  <!-- ===== GLOBAL TOASTS ===== -->
+  <div class="toast-container">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="toast" :class="'toast--' + t.type" x-text="t.text" role="alert"></div>
+    </template>
+  </div>
+
+  <!-- OVERLAY -->
+  <div class="mobile-overlay" :class="{ 'mobile-overlay--open': sidebarOpen }" @click="sidebarOpen = false"></div>
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" :class="{ 'sidebar--open': sidebarOpen }">
+    <div class="sidebar__brand">
+      <div class="sidebar__brand-name">Casa Dam</div>
+      <div class="sidebar__brand-tagline">Vivimos contigo</div>
+    </div>
+    <nav class="sidebar__nav">
+      <template x-for="s in sections" :key="s.key">
+        <div class="sidebar__item" :class="{ 'sidebar__item--active': currentSection === s.key }" @click="changeSection(s.key)">
+          <i :data-lucide="s.icon" style="width:18px;height:18px;flex-shrink:0;"></i>
+          <span x-text="s.label"></span>
+        </div>
+      </template>
+    </nav>
+    <div class="sidebar__user">
+      <div class="sidebar__user-email" x-text="userEmail"></div>
+      <button class="sidebar__logout" @click="logout()">
+        <i data-lucide="log-out" style="width:14px;height:14px;"></i> Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="main__header">
+      <div>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <button class="hamburger" @click="sidebarOpen = !sidebarOpen">
+            <i data-lucide="menu" style="width:22px;height:22px;"></i>
+          </button>
+          <h1 class="main__title" x-text="currentTitle"></h1>
+        </div>
+        <p class="main__subtitle" x-text="currentSubtitle" x-show="currentSubtitle"></p>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <template x-if="currentSection === 'categorias'">
+          <button class="btn btn-primary btn-sm" @click="$dispatch('open-cat-modal')">
+            <i data-lucide="plus" style="width:15px;height:15px;"></i> Nueva
+          </button>
+        </template>
+        <template x-if="currentSection === 'productos'">
+          <button class="btn btn-primary btn-sm" @click="$dispatch('open-product-modal')">
+            <i data-lucide="plus" style="width:15px;height:15px;"></i> Nuevo
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div class="main__content">
+      <!-- Each section transitions in -->
+      <div class="section-panel" :class="'section-panel--'+currentSection" x-show="currentSection === 'dashboard'">
+        <div x-data="dashboardModule" x-init="init()">
+          <!-- ===== KPI CARDS ===== -->
+          <div class="kpi-grid">
+            <div class="kpi-card" @click="changeSection('productos')" x-bind:style="'animation-delay:' + (0 + 'ms')">
+              <i data-lucide="package" class="kpi-card__icon"></i>
+              <div class="kpi-card__num" x-text="animatedStats.total" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Total productos</div>
+            </div>
+            <div class="kpi-card kpi-card--success" x-bind:style="'animation-delay:' + (40 + 'ms')">
+              <i data-lucide="check-circle" class="kpi-card__icon kpi-card__icon--green"></i>
+              <div class="kpi-card__num" x-text="animatedStats.disponibles" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Disponibles</div>
+            </div>
+            <div class="kpi-card kpi-card--warn" x-show="stats.noDisponibles > 0" x-bind:style="'animation-delay:' + (80 + 'ms')">
+              <i data-lucide="x-circle" class="kpi-card__icon kpi-card__icon--amber"></i>
+              <div class="kpi-card__num" x-text="animatedStats.noDisponibles" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">No disponibles</div>
+            </div>
+            <div class="kpi-card" x-bind:style="'animation-delay:' + (120 + 'ms')">
+              <i data-lucide="star" class="kpi-card__icon kpi-card__icon--amber"></i>
+              <div class="kpi-card__num" x-text="animatedStats.destacados" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Destacados</div>
+            </div>
+            <div class="kpi-card" @click="changeSection('categorias')" x-bind:style="'animation-delay:' + (160 + 'ms')">
+              <i data-lucide="tags" class="kpi-card__icon"></i>
+              <div class="kpi-card__num" x-text="animatedStats.categorias" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Categorías</div>
+            </div>
+            <div class="kpi-card kpi-card--warn" x-show="stats.sinImagen > 0" x-bind:style="'animation-delay:' + (200 + 'ms')">
+              <i data-lucide="image-off" class="kpi-card__icon kpi-card__icon--amber"></i>
+              <div class="kpi-card__num" x-text="animatedStats.sinImagen" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Sin imágenes</div>
+              <span class="kpi-card__dot" x-show="stats.sinImagen > 0"></span>
+            </div>
+            <div class="kpi-card kpi-card--warn" x-show="stats.precioCero > 0" x-bind:style="'animation-delay:' + (240 + 'ms')">
+              <i data-lucide="dollar-sign" class="kpi-card__icon kpi-card__icon--amber"></i>
+              <div class="kpi-card__num" x-text="animatedStats.precioCero" style="font-variant-numeric:tabular-nums;"></div>
+              <div class="kpi-card__label">Precio $0</div>
+              <span class="kpi-card__dot" x-show="stats.precioCero > 0"></span>
+            </div>
+          </div>
+
+          <!-- ===== QUICK ACTIONS ===== -->
+          <div class="quick-actions">
+            <button class="btn btn-primary" @click="changeSection('productos')">
+              <i data-lucide="plus" style="width:16px;height:16px;"></i> Nuevo producto
+            </button>
+            <button class="btn btn-secondary" @click="changeSection('categorias')">
+              <i data-lucide="folder-tree" style="width:16px;height:16px;"></i> Gestionar categorías
+            </button>
+            <button class="btn btn-secondary" @click="changeSection('configuracion')">
+              <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i> Actualizar tasas
+            </button>
+          </div>
+
+          <!-- ===== RECENT PRODUCTS ===== -->
+          <div class="recent-section">
+            <h2 class="section-heading">Productos agregados recientemente</h2>
+            <div x-show="loading" class="recent-skeleton">
+              <div class="sk-line sk-line--long" style="height:40px;margin-bottom:8px;"></div>
+              <div class="sk-line sk-line--med" style="height:40px;margin-bottom:8px;"></div>
+              <div class="sk-line sk-line--long" style="height:40px;"></div>
+            </div>
+            <div x-show="!loading && recientes.length===0" class="recent-empty">
+              <i data-lucide="inbox" style="width:32px;height:32px;color:var(--color-border);margin-bottom:0.5rem;"></i>
+              <p>No hay productos aún</p>
+            </div>
+            <template x-for="(p, idx) in recientes" :key="p.id">
+              <div class="recent-row" :class="{'recent-row--last': idx === recientes.length - 1}" @click="openProductView(p)">
+                <div class="recent-row__thumb">
+                  <img x-show="p._img" :src="p._img.url" class="recent-row__thumb-img" loading="lazy">
+                  <div x-show="!p._img" class="recent-row__thumb-placeholder">
+                    <i data-lucide="image" style="width:20px;height:20px;color:var(--color-border);"></i>
+                  </div>
+                </div>
+                <div class="recent-row__info">
+                  <div class="recent-row__name" x-text="p.nombre"></div>
+                  <div class="recent-row__meta">
+                    <span x-text="p.codigo_interno"></span>
+                    <span class="recent-row__meta-sep">·</span>
+                    <span x-text="p._catName"></span>
+                    <span class="recent-row__meta-sep" x-show="p._measures">·</span>
+                    <span x-text="p._measures"></span>
+                  </div>
+                </div>
+                <div class="recent-row__price">
+                  <div class="recent-row__price-val" x-show="p.mostrar_precio" x-text="'$ ' + (parseFloat(p.precio_usd)||0).toFixed(2)"></div>
+                  <div class="recent-row__price-val" x-show="!p.mostrar_precio" style="color:var(--color-text-secondary);">Consultar precio</div>
+                  <div class="recent-row__time" x-text="p._timeAgo"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== CATEGORÍAS ========== -->
+      <div class="section-panel" :class="'section-panel--categorias'" x-show="currentSection === 'categorias'">
+        <div x-data="categoriasModule" x-init="init()">
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th>Nombre</th><th>Slug</th><th style="text-align:center;">Sub.</th><th style="text-align:center;">Prod.</th><th style="text-align:center;">Estado</th><th class="col-actions">Acciones</th></tr></thead>
+              <tbody x-show="loading">
+                <tr class="skeleton-row"><td><div class="sk-line sk-line--long"></div></td><td><div class="sk-line sk-line--med"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td><div class="sk-line sk-line--long"></div></td><td><div class="sk-line sk-line--med"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td><div class="sk-line sk-line--med"></div></td><td><div class="sk-line sk-line--short"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td><div class="sk-line sk-line--short" style="margin:0 auto;"></div></td><td></td><td></td></tr>
+              </tbody>
+              <template x-for="cat in categorias" :key="cat.id">
+                <tbody class="cat-group">
+                  <tr class="cat-row">
+                    <td>
+                      <span class="cat-name" @click="toggleExpand(cat.id)">
+                        <i data-lucide="chevron-right" class="cat-caret" :class="{'cat-caret--open': expandedId===cat.id}"></i>
+                        <span x-text="cat.nombre"></span>
+                      </span>
+                    </td>
+                    <td><code class="code-chip" x-text="cat.slug"></code></td>
+                    <td style="text-align:center;" x-text="cat.subcategorias_count" style="font-variant-numeric:tabular-nums;"></td>
+                    <td style="text-align:center;" x-text="cat.productos_count" style="font-variant-numeric:tabular-nums;"></td>
+                    <td style="text-align:center;">
+                      <div class="toggle-sw" :class="{'toggle-sw--on':cat.activa}" @click="toggleCatActiva(cat)"></div>
+                    </td>
+                    <td><div class="actions">
+                      <button class="action-btn" @click="openCatModal('edit',cat)" title="Editar"><i data-lucide="pencil" style="width:15px;height:15px;"></i></button>
+                      <button class="action-btn action-btn--danger" @click="confirmDeleteCat(cat)" title="Eliminar"><i data-lucide="trash-2" style="width:15px;height:15px;"></i></button>
+                    </div></td>
+                  </tr>
+                  <tr class="sub-expand-row" x-show="expandedId===cat.id" x-cloak>
+                    <td colspan="6" class="sub-expand-cell">
+                      <div class="sub-expand-inner" x-show="expandedId===cat.id">
+                        <div x-show="subLoading[cat.id]" class="sub-loading">
+                          <div class="sk-line sk-line--med" style="height:12px;margin-bottom:8px;"></div>
+                          <div class="sk-line sk-line--short" style="height:12px;"></div>
+                        </div>
+                        <div x-show="!subLoading[cat.id]">
+                          <template x-for="sub in (subcategorias[cat.id]||[])" :key="sub.id">
+                            <div class="sub-item">
+                              <span class="sub-item__name"><span class="sub-arrow">↳</span> <span x-text="sub.nombre"></span></span>
+                              <code class="code-chip code-chip--sm" x-text="sub.slug"></code>
+                              <span class="badge-status" :class="sub.activa?'badge-status--active':'badge-status--inactive'" x-text="sub.activa?'Activa':'Inactiva'"></span>
+                              <div class="actions">
+                                <button class="action-btn" @click="toggleSubActiva(cat.id,sub)" :title="sub.activa?'Desactivar':'Activar'"><i data-lucide="power" style="width:14px;height:14px;"></i></button>
+                                <button class="action-btn" @click="openSubModal('edit',cat.id,sub)" title="Editar"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+                                <button class="action-btn action-btn--danger" @click="confirmDeleteSub(sub)" title="Eliminar"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
+                              </div>
+                            </div>
+                          </template>
+                          <div x-show="!subcategorias[cat.id] || !subcategorias[cat.id].length" class="sub-empty">Sin subcategorías</div>
+                          <button class="btn-add-sub" @click="openSubModal('create',cat.id)">
+                            <i data-lucide="plus" style="width:14px;height:14px;"></i> Nueva subcategoría
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </template>
+              <tbody x-show="!loading && categorias.length===0">
+                <tr><td colspan="6" class="empty-cell">
+                  <div class="empty-state-inline">
+                    <i data-lucide="tags" style="width:40px;height:40px;margin-bottom:0.75rem;color:var(--color-border);"></i>
+                    <p style="font-weight:500;margin-bottom:0.25rem;">No hay categorías</p>
+                    <p style="font-size:0.82rem;">Crea la primera con el botón <strong>"+ Nueva"</strong>.</p>
+                  </div>
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- CAT MODAL -->
+          <div class="modal-overlay" x-show="catModalOpen" x-transition.opacity @click.self="closeCatModal()" @keydown.escape.window="closeCatModal()">
+            <div class="modal-card" x-show="catModalOpen" x-transition.scale.80>
+              <div class="modal-header"><span class="modal-title" x-text="catModalMode==='create'?'Nueva categoría':'Editar categoría'"></span><button class="modal-close" @click="closeCatModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button></div>
+              <div class="modal-body">
+                <div class="form-group"><label>Nombre</label><input type="text" x-model="catForm.nombre" @input="onCatNombreChange()" class="form-input" placeholder="Ej: Porcelanato"><span class="error-text" x-show="catErrors.nombre" x-text="catErrors.nombre"></span></div>
+                <div class="form-group"><label>Slug</label><input type="text" x-model="catForm.slug" class="form-input" placeholder="porcelanato"><span class="error-text" x-show="catErrors.slug" x-text="catErrors.slug"></span></div>
+                <div class="form-group"><label>Descripción</label><textarea x-model="catForm.descripcion" placeholder="Opcional"></textarea></div>
+                <div class="form-group"><label>Orden</label><input type="number" x-model="catForm.orden" class="form-input" min="0"></div>
+                <div class="form-group toggle-row"><span class="toggle-label-text">Activa</span><div class="toggle-sw" :class="{'toggle-sw--on':catForm.activa}" @click="catForm.activa=!catForm.activa"></div></div>
+              </div>
+              <div class="modal-footer"><button class="btn btn-secondary" @click="closeCatModal()">Cancelar</button><button class="btn btn-primary" @click="saveCategoria()" :disabled="catSaving"><span class="spinner" x-show="catSaving"></span><span x-text="catSaving?'Guardando...':'Guardar'"></span></button></div>
+            </div>
+          </div>
+
+          <!-- SUB MODAL -->
+          <div class="modal-overlay" x-show="subModalOpen" x-transition.opacity @click.self="closeSubModal()" @keydown.escape.window="closeSubModal()">
+            <div class="modal-card" x-show="subModalOpen" x-transition.scale.80>
+              <div class="modal-header"><span class="modal-title" x-text="subModalMode==='create'?'Nueva subcategoría':'Editar subcategoría'"></span><button class="modal-close" @click="closeSubModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button></div>
+              <div class="modal-body">
+                <div class="form-group"><label>Nombre</label><input type="text" x-model="subForm.nombre" @input="onSubNombreChange()" class="form-input" placeholder="Ej: Pulido"></div>
+                <div class="form-group"><label>Slug</label><input type="text" x-model="subForm.slug" class="form-input" placeholder="pulido"></div>
+                <div class="form-group"><label>Orden</label><input type="number" x-model="subForm.orden" class="form-input" min="0"></div>
+                <div class="form-group toggle-row"><span class="toggle-label-text">Activa</span><div class="toggle-sw" :class="{'toggle-sw--on':subForm.activa}" @click="subForm.activa=!subForm.activa"></div></div>
+              </div>
+              <div class="modal-footer"><button class="btn btn-secondary" @click="closeSubModal()">Cancelar</button><button class="btn btn-primary" @click="saveSubcategoria()" :disabled="subSaving"><span class="spinner" x-show="subSaving"></span><span x-text="subSaving?'Guardando...':'Guardar'"></span></button></div>
+            </div>
+          </div>
+
+          <!-- DELETE CONFIRM -->
+          <div class="modal-overlay" x-show="confirmOpen" x-transition.opacity @click.self="closeConfirm()" @keydown.escape.window="closeConfirm()">
+            <div class="modal-card modal-card--confirm" x-show="confirmOpen" x-transition.scale.80>
+              <div class="confirm-icon">
+                <i data-lucide="alert-triangle" style="width:32px;height:32px;color:var(--color-error);"></i>
+              </div>
+              <div class="modal-body" style="text-align:center;">
+                <p x-show="deleteType==='categoria'">¿Eliminar la categoría <strong x-text="deleteTarget?.nombre"></strong>?<br><small style="color:var(--color-text-secondary);">Esta acción no se puede deshacer. Si tiene productos asociados, no podrá eliminarse.</small></p>
+                <p x-show="deleteType==='subcategoria'">¿Eliminar la subcategoría <strong x-text="deleteTarget?.nombre"></strong>?<br><small style="color:var(--color-text-secondary);">Esta acción no se puede deshacer.</small></p>
+              </div>
+              <div class="modal-footer" style="justify-content:center;gap:0.75rem;">
+                <button class="btn btn-ghost" @click="closeConfirm()">Cancelar</button>
+                <button class="btn btn-danger" @click="executeDelete()" :disabled="deleting"><span x-text="deleting?'Eliminando...':'Eliminar'"></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== PRODUCTOS ========== -->
+      <div class="section-panel" :class="'section-panel--productos'" x-show="currentSection === 'productos'">
+        <div x-data="productosModule" x-init="init()" @open-product-modal.window="openProdModal($event.detail._mode || ($event.detail && $event.detail.id ? 'edit' : 'create'), $event.detail || null)">
+          <div class="filter-bar">
+            <input type="search" class="input-search" placeholder="Buscar..." x-model="search" @input="debounceSearch()" style="flex:2;min-width:160px;">
+            <select x-model="filterCategoria" @change="onChangeCategoria();page=1" style="flex:1;min-width:130px;">
+              <option value="">Todas las categorías</option>
+              <template x-for="c in categorias"><option :value="c.id" x-text="c.nombre"></option></template>
+            </select>
+            <select x-model="filterSubcategoria" @change="page=1" style="flex:1;min-width:130px;" x-show="subcategorias.length">
+              <option value="">Todas las subcategorías</option>
+              <template x-for="s in subcategorias"><option :value="s.id" x-text="s.nombre"></option></template>
+            </select>
+            <label class="filter-check"><input type="checkbox" x-model="filterDisponible" @change="page=1"> Disponibles</label>
+            <button class="btn btn-ghost btn-sm" @click="clearFilters()"><i data-lucide="x" style="width:14px;height:14px;"></i> Limpiar</button>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead><tr><th></th><th>Código</th><th>Nombre</th><th>Cat.</th><th>Medidas</th><th>Precio</th><th>Estado</th><th class="col-actions">Acciones</th></tr></thead>
+              <tbody x-show="loading">
+                <tr class="skeleton-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr class="skeleton-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              </tbody>
+              <tbody x-show="!loading && paginatedProductos.length===0">
+                <tr><td colspan="8" class="empty-cell">
+                  <div class="empty-state-inline">
+                    <i data-lucide="package" style="width:40px;height:40px;margin-bottom:0.75rem;color:var(--color-border);"></i>
+                    <p style="font-weight:500;margin-bottom:0.25rem;">No se encontraron productos</p>
+                    <p style="font-size:0.82rem;" x-show="search||filterCategoria||filterSubcategoria||filterDisponible">Prueba ajustando los filtros de búsqueda.</p>
+                    <p style="font-size:0.82rem;" x-show="!search&&!filterCategoria&&!filterSubcategoria&&!filterDisponible">Crea el primero con el botón <strong>"+ Nuevo"</strong>.</p>
+                  </div>
+                </td></tr>
+              </tbody>
+              <tbody x-show="!loading && paginatedProductos.length>0">
+                <template x-for="p in paginatedProductos" :key="p.id"><tr>
+                  <td>
+                    <img :src="p.imagen_principal?p.imagen_principal.url:''" style="width:36px;height:36px;object-fit:cover;border-radius:4px;background:var(--color-bg-lighter);" alt="" loading="lazy">
+                  </td>
+                  <td style="font-size:0.76rem;color:var(--color-text-secondary);" x-text="p.codigo_interno"></td>
+                  <td style="font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="p.nombre"></td>
+                  <td style="font-size:0.8rem;" x-text="catName(p.categoria_id)"></td>
+                  <td style="font-size:0.76rem;color:var(--color-text-secondary);" x-text="formatMeasures(p)"></td>
+                  <td style="font-weight:500;" x-text="formatPrice(p)"></td>
+                  <td>
+                    <span class="badge-status badge-status--active" x-show="p.disponible" style="margin-right:1px;">Disp.</span>
+                    <span class="badge-status badge-status--inactive" x-show="!p.disponible" style="margin-right:1px;">No</span>
+                    <span class="badge-status badge-status--featured" x-show="p.destacado">★</span>
+                  </td>
+                  <td><div class="actions">
+                    <button class="action-btn" @click="openProdModal('view',p)" title="Ver"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>
+                    <button class="toggle-mini" :class="{'toggle-mini--on':p.disponible}" @click="toggleDisponible(p)" :title="p.disponible?'Disponible':'No disponible'"></button>
+                    <button class="action-btn" @click="openProdModal('edit',p)" title="Editar"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+                    <button class="action-btn" @click="duplicateProduct(p)" title="Duplicar"><i data-lucide="copy" style="width:14px;height:14px;"></i></button>
+                    <button class="action-btn action-btn--danger" @click="confirmDelete(p)" title="Eliminar"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
+                  </div></td>
+                </tr></template>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination-bar" x-show="totalPages>1">
+            <span x-text="filteredProductos.length+' productos'"></span>
+            <div>
+              <button class="btn btn-ghost btn-sm" @click="goPage(page-1)" :disabled="page===1"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i></button>
+              <template x-for="p in pages">
+                <button class="btn btn-sm" :class="p===page?'btn-primary':'btn-ghost'" @click="goPage(p)" x-text="p"></button>
+              </template>
+              <button class="btn btn-ghost btn-sm" @click="goPage(page+1)" :disabled="page===totalPages"><i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
+            </div>
+          </div>
+
+          <!-- PRODUCT MODAL -->
+          <div class="modal-overlay" x-show="prodModalOpen" x-transition.opacity @keydown.escape.window="closeProdModal()">
+            <div class="modal-card modal-card--wide" x-show="prodModalOpen" x-transition.scale.80>
+              <div class="modal-header">
+                <span class="modal-title" x-text="prodModalMode==='create'?'Nuevo producto':(prodModalMode==='view'?'Detalles del producto':'Editar producto')"></span>
+                <button class="modal-close" @click="closeProdModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+              </div>
+
+              <!-- Step indicator (create only, non-clickable) -->
+              <div class="step-indicator" x-show="prodModalMode==='create'">
+                <template x-for="(step,i) in prodSteps" :key="i">
+                  <div class="step-indicator__item" :class="{
+                    'step-indicator__item--done': i < prodStep,
+                    'step-indicator__item--active': i === prodStep,
+                    'step-indicator__item--pending': i > prodStep
+                  }">
+                    <div class="step-indicator__circle" x-text="i < prodStep ? '✓' : i+1"></div>
+                    <span class="step-indicator__label" x-text="step.label"></span>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Tab selector (edit only) -->
+              <div class="modal-tabs" x-show="prodModalMode==='edit'">
+                <template x-for="(step,i) in prodSteps" :key="i">
+                  <div class="modal-tab" :class="{'modal-tab--active': prodStep===i}" @click="prodStep = i" x-text="step.label"></div>
+                </template>
+              </div>
+
+              <!-- === FORM BODY (create/edit) === -->
+              <div class="modal-body" x-show="prodModalMode!=='view'">
+                <div x-show="prodStep===0">
+                  <div class="form-group"><label>Código interno <span class="required-star">*</span></label><input type="text" x-model="prodForm.codigo_interno" @input="markDirty();prodErrors.codigo_interno=''" class="form-input" :class="{'form-input--error': prodErrors.codigo_interno}"><span class="error-text" x-show="prodErrors.codigo_interno" x-text="prodErrors.codigo_interno"></span></div>
+                  <div class="form-group"><label>Nombre <span class="required-star">*</span></label><input type="text" x-model="prodForm.nombre" @input="markDirty();prodErrors.nombre=''" class="form-input" :class="{'form-input--error': prodErrors.nombre}"><span class="error-text" x-show="prodErrors.nombre" x-text="prodErrors.nombre"></span></div>
+                  <div class="form-group"><label>Descripción</label><textarea x-model="prodForm.descripcion_larga" @input="markDirty()" placeholder="Opcional" rows="2"></textarea></div>
+                  <div class="form-group"><label>Categoría <span class="required-star">*</span></label><select x-model="prodForm.categoria_id" @change="onProdCategoriaChange();markDirty();prodErrors.categoria_id=''" class="form-input" :class="{'form-input--error': prodErrors.categoria_id}"><option value="">Seleccionar...</option><template x-for="c in categorias"><option :value="c.id" x-text="c.nombre"></option></template></select><span class="error-text" x-show="prodErrors.categoria_id" x-text="prodErrors.categoria_id"></span></div>
+                  <div class="form-group"><label>Subcategoría</label><select x-model="prodForm.subcategoria_id" @change="markDirty()" class="form-input"><option value="">Ninguna</option><template x-for="s in subcategorias"><option :value="s.id" x-text="s.nombre"></option></template></select></div>
+                </div>
+                <div x-show="prodStep===1">
+                  <div class="form-group"><label>Ancho</label><input type="number" step="0.001" x-model="prodForm.ancho" @input="markDirty()" class="form-input"></div>
+                  <div class="form-group"><label>Largo</label><input type="number" step="0.001" x-model="prodForm.largo" @input="markDirty()" class="form-input"></div>
+                  <div class="form-group"><label>Espesor</label><input type="number" step="0.001" x-model="prodForm.espesor" @input="markDirty()" class="form-input"></div>
+                  <div class="form-group"><label>Unidad</label><select x-model="prodForm.unidad_medida" @change="markDirty()" class="form-input"><option value="cm">cm</option><option value="mm">mm</option></select></div>
+                  <div class="form-preview" x-show="previewMeasures" x-text="'Preview: ' + previewMeasures"></div>
+                </div>
+                <div x-show="prodStep===2">
+                  <div class="form-group">
+                    <label>Color</label>
+                    <div class="color-field">
+                      <input type="color" class="color-field__picker" :value="colorToHex(prodForm.color)" @input="prodForm.color=$event.target.value;markDirty()">
+                      <input type="text" x-model="prodForm.color" @input="markDirty()" class="form-input" list="colors-list" placeholder="#hex o nombre de color" style="flex:1;">
+                      <datalist id="colors-list">
+                        <option>Blanco</option><option>Beige</option><option>Gris</option>
+                        <option>Negro</option><option>Marrón</option><option>Crema</option>
+                        <option>Multicolor</option><option>Natural</option>
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group"><label>Acabado</label><input type="text" x-model="prodForm.acabado" @input="markDirty()" class="form-input" list="acabados-list" placeholder="Mate, Pulido, Rectificado..."><datalist id="acabados-list"><template x-for="v in uniqueAcabados"><option :value="v"></option></template></datalist></div>
+                  <div class="form-group"><label>Material</label><input type="text" x-model="prodForm.material" @input="markDirty()" class="form-input" list="materiales-list"><datalist id="materiales-list"><template x-for="v in uniqueMateriales"><option :value="v"></option></template></datalist></div>
+                  <div class="form-group"><label>Uso</label><select x-model="prodForm.uso" @change="markDirty()" class="form-input"><option>Ambos</option><option>Piso</option><option>Pared</option><option>Exterior</option></select></div>
+                  <div class="form-group"><label>Marca</label><input type="text" x-model="prodForm.marca" @input="markDirty()" class="form-input" list="marcas-list"><datalist id="marcas-list"><template x-for="v in uniqueMarcas"><option :value="v"></option></template></datalist></div>
+                </div>
+                <div x-show="prodStep===3">
+                  <div class="form-group"><label>m² por caja</label><input type="number" step="0.001" x-model="prodForm.m2_por_caja" @input="markDirty()" class="form-input"></div>
+                  <div class="form-group"><label>Piezas por caja</label><input type="number" x-model="prodForm.piezas_por_caja" @input="markDirty()" class="form-input"></div>
+                  <div class="form-group"><label>Peso (kg)</label><input type="number" step="0.001" x-model="prodForm.peso" @input="markDirty()" class="form-input"></div>
+                </div>
+                <div x-show="prodStep===4">
+                  <div class="form-group"><label>Precio USD <span class="required-star">*</span></label><input type="number" step="0.01" x-model="prodForm.precio_usd" @input="markDirty();prodErrors.precio_usd=''" class="form-input" :class="{'form-input--error': prodErrors.precio_usd}"><span class="error-text" x-show="prodErrors.precio_usd" x-text="prodErrors.precio_usd"></span></div>
+                  <div class="form-group toggle-row"><span>Mostrar precio al público</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.mostrar_precio}" @click="prodForm.mostrar_precio=!prodForm.mostrar_precio;markDirty()"></div></div>
+                  <p style="font-size:0.75rem;color:var(--color-text-secondary);" x-show="!prodForm.mostrar_precio">El cliente verá "Consultar precio"</p>
+                  <hr style="margin:1rem 0;border-color:var(--color-border);">
+                  <div class="form-group toggle-row"><span>Disponible</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.disponible}" @click="prodForm.disponible=!prodForm.disponible;markDirty()"></div></div>
+                  <div class="form-group toggle-row"><span>Destacado</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.destacado}" @click="prodForm.destacado=!prodForm.destacado;markDirty()"></div></div>
+                </div>
+                <div x-show="prodStep===5">
+                  <p style="font-size:0.78rem;color:var(--color-text-secondary);margin-bottom:0.75rem;">Arrastra imágenes o haz clic en + para agregar. JPG, PNG, WebP. Máx 5 MB.</p>
+                  <div class="image-upload-zone" @dragover.prevent @drop.prevent="$refs.imgInput.files=$event.dataTransfer.files;onImageFiles({target:$refs.imgInput})">
+                    <input type="file" x-ref="imgInput" multiple accept="image/jpeg,image/png,image/webp" @change="onImageFiles($event)" style="display:none;">
+                    <!-- Empty state (no images yet) -->
+                    <template x-if="activeImages.length===0">
+                      <div class="image-upload-placeholder" @click="$refs.imgInput.click()">
+                        <i data-lucide="upload" style="width:20px;height:20px;margin-bottom:4px;"></i> Agregar imágenes
+                      </div>
+                    </template>
+                    <!-- Grid + add button -->
+                    <div class="image-grid-wrapper" x-show="activeImages.length>0">
+                      <div class="image-grid">
+                        <template x-for="(img,i) in prodImages" :key="img.id || img.preview || i">
+                          <div class="image-grid__item" x-show="!img.toDelete">
+                            <img :src="img.preview" style="width:100%;height:100%;object-fit:cover;">
+                            <span class="image-grid__star" :class="{'image-grid__star--active':img.es_principal}" @click="setPrincipalImage(i)"><i data-lucide="star" style="width:14px;height:14px;"></i></span>
+                            <span class="image-grid__badge" x-show="img.es_principal">Principal</span>
+                            <span class="image-grid__remove" @click="removeImage(i)"><i data-lucide="x" style="width:12px;height:12px;"></i></span>
+                            <div class="image-grid__arrows" x-show="activeImages.length>1"><button @click="moveImage(i,-1)"><i data-lucide="chevron-up" style="width:10px;height:10px;"></i></button><button @click="moveImage(i,1)"><i data-lucide="chevron-down" style="width:10px;height:10px;"></i></button></div>
+                          </div>
+                        </template>
+                        <!-- Add more button -->
+                        <div class="image-grid__add" @click="$refs.imgInput.click()">
+                          <i data-lucide="plus" style="width:22px;height:22px;color:var(--color-text-secondary);"></i>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- === VIEW-ONLY BODY === -->
+              <div class="modal-body" x-show="prodModalMode==='view'">
+                <!-- Código y Nombre -->
+                <div class="view-section">
+                  <div class="view-grid">
+                    <div class="view-field"><div class="view-field__label">Código interno</div><div class="view-field__value" x-text="prodForm.codigo_interno"></div></div>
+                    <div class="view-field"><div class="view-field__label">Nombre</div><div class="view-field__value" x-text="prodForm.nombre"></div></div>
+                    <div class="view-field">
+                      <div class="view-field__label">Categoría</div>
+                      <div class="view-field__value" x-text="getCatNameById(prodForm.categoria_id)"></div>
+                    </div>
+                    <div class="view-field">
+                      <div class="view-field__label">Subcategoría</div>
+                      <div class="view-field__value" x-text="prodForm.subcategoria_id ? getSubcatNameById(prodForm.subcategoria_id) : '—'"></div>
+                    </div>
+                  </div>
+                  <div class="view-field" x-show="prodForm.descripcion_larga" style="margin-top:10px;">
+                    <div class="view-field__label">Descripción</div>
+                    <div class="view-field__value" style="font-weight:400;font-size:13px;color:var(--color-text-secondary);line-height:1.6;" x-text="prodForm.descripcion_larga"></div>
+                  </div>
+                </div>
+                <!-- Medidas -->
+                <div class="view-section">
+                  <div class="view-section__title">Medidas</div>
+                  <div class="view-grid">
+                    <div class="view-field"><div class="view-field__label">Ancho</div><div class="view-field__value" x-text="(parseFloat(prodForm.ancho)||0)+' '+prodForm.unidad_medida"></div></div>
+                    <div class="view-field"><div class="view-field__label">Largo</div><div class="view-field__value" x-text="(parseFloat(prodForm.largo)||0)+' '+prodForm.unidad_medida"></div></div>
+                    <div class="view-field"><div class="view-field__label">Espesor</div><div class="view-field__value" x-text="(parseFloat(prodForm.espesor)||0)+' '+prodForm.unidad_medida"></div></div>
+                    <div class="view-field"><div class="view-field__label">Unidad</div><div class="view-field__value" x-text="prodForm.unidad_medida"></div></div>
+                  </div>
+                </div>
+                <!-- Características -->
+                <div class="view-section">
+                  <div class="view-section__title">Características</div>
+                  <div class="view-grid">
+                    <div class="view-field"><div class="view-field__label">Color</div><div class="view-field__value" x-text="prodForm.color || '—'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Acabado</div><div class="view-field__value" x-text="prodForm.acabado || '—'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Material</div><div class="view-field__value" x-text="prodForm.material || '—'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Uso</div><div class="view-field__value" x-text="prodForm.uso || '—'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Marca</div><div class="view-field__value" x-text="prodForm.marca || '—'"></div></div>
+                  </div>
+                </div>
+                <!-- Empaque -->
+                <div class="view-section">
+                  <div class="view-section__title">Empaque</div>
+                  <div class="view-grid">
+                    <div class="view-field"><div class="view-field__label">m² por caja</div><div class="view-field__value" x-text="(parseFloat(prodForm.m2_por_caja)||0)+' m²'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Piezas por caja</div><div class="view-field__value" x-text="parseInt(prodForm.piezas_por_caja)||'—'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Peso</div><div class="view-field__value" x-text="(parseFloat(prodForm.peso)||0)+' kg'"></div></div>
+                  </div>
+                </div>
+                <!-- Precio y Estado -->
+                <div class="view-section">
+                  <div class="view-section__title">Precio y Estado</div>
+                  <div class="view-grid">
+                    <div class="view-field"><div class="view-field__label">Precio USD</div><div class="view-field__value" x-text="'$ '+(parseFloat(prodForm.precio_usd)||0).toFixed(2)"></div></div>
+                    <div class="view-field"><div class="view-field__label">Mostrar precio</div><div class="view-field__value" x-text="prodForm.mostrar_precio?'Sí':'No (consultar)'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Disponible</div><div class="view-field__value" x-text="prodForm.disponible?'Sí':'No'"></div></div>
+                    <div class="view-field"><div class="view-field__label">Destacado</div><div class="view-field__value" x-text="prodForm.destacado?'Sí':'No'"></div></div>
+                  </div>
+                </div>
+                <!-- Imágenes -->
+                <div class="view-section" x-show="prodImages.length>0">
+                  <div class="view-section__title">Imágenes</div>
+                  <div class="view-images">
+                    <template x-for="(img,i) in prodImages" :key="i">
+                      <div class="view-images__item" :class="{'view-images__item--principal':img.es_principal}">
+                        <img :src="img.preview || img.url" loading="lazy">
+                        <div class="view-images__chip" x-show="img.es_principal">Principal</div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <!-- === FOOTER: create / edit === -->
+              <div class="modal-footer" x-show="prodModalMode!=='view'" style="justify-content:space-between;">
+                <div style="display:flex;gap:0.5rem;">
+                  <template x-if="prodModalMode==='create'">
+                    <button class="btn btn-ghost btn-sm" x-show="prodStep>0" @click="prodStep--"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Anterior</button>
+                  </template>
+                  <template x-if="prodModalMode==='create'">
+                    <button class="btn btn-ghost btn-sm" x-show="prodStep>0 && prodStep<5" @click="prodStep++">Omitir <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
+                  </template>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                  <button class="btn btn-secondary" @click="closeProdModal()">Cancelar</button>
+                  <template x-if="prodModalMode==='create' && prodStep<5">
+                    <button class="btn btn-primary" @click="nextStep()">Siguiente <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
+                  </template>
+                  <template x-if="prodModalMode==='edit' || (prodModalMode==='create' && prodStep===5)">
+                    <button class="btn btn-primary" @click="saveProducto()" :disabled="prodSaving"><span class="spinner" x-show="prodSaving"></span><span x-text="prodSaving?'Guardando...':(prodModalMode==='create'?'Guardar producto':'Guardar cambios')"></span></button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- === FOOTER: view === -->
+              <div class="modal-footer" x-show="prodModalMode==='view'">
+                <button class="btn btn-secondary" @click="closeProdModal()">Cerrar</button>
+                <button class="btn btn-primary" @click="openProdModalFromView()"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Editar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- DELETE MODAL -->
+          <div class="modal-overlay" x-show="deleteOpen" x-transition.opacity @click.self="closeDeleteModal()" @keydown.escape.window="closeDeleteModal()">
+            <div class="modal-card modal-card--confirm" x-show="deleteOpen" x-transition.scale.80>
+              <div class="confirm-icon"><i data-lucide="alert-triangle" style="width:32px;height:32px;color:var(--color-error);"></i></div>
+              <div class="modal-body" style="text-align:center;"><p>¿Eliminar <strong x-text="deleteTarget?.nombre"></strong>?<br><small style="color:var(--color-text-secondary);">Se eliminarán también sus imágenes del storage. Esta acción es irreversible.</small></p></div>
+              <div class="modal-footer" style="justify-content:center;gap:0.75rem;">
+                <button class="btn btn-ghost" @click="closeDeleteModal()" x-ref="cancelDeleteBtn">Cancelar</button>
+                <button class="btn btn-danger" @click="executeDelete()" :disabled="deleting"><span x-text="deleting?'Eliminando...':'Eliminar'"></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== CONFIGURACIÓN ========== -->
+      <div class="section-panel" :class="'section-panel--configuracion'" x-show="currentSection === 'configuracion'">
+        <div x-data="configuracionModule" x-init="init()">
+          <div class="config-layout">
+            <div class="config-card config-card--featured">
+              <i data-lucide="refresh-cw" style="width:22px;height:22px;color:var(--color-accent);margin-bottom:0.25rem;"></i>
+              <h3 class="config-card__title">Tasas de cambio</h3>
+              <p class="config-card__hint" x-text="updatedAtText" x-show="updatedAtText"></p>
+              <div class="form-group"><label>Tasa COP por USD</label><input type="number" step="0.01" x-model="tasaCOP" class="form-input"></div>
+              <div class="form-group"><label>Tasa VES por USD</label><input type="number" step="0.01" x-model="tasaVES" class="form-input"></div>
+              <div class="config-preview">
+                <span><strong>$1 USD</strong> = <span x-text="'$ '+tasaCOP+' COP'"></span></span>
+                <span><strong>$1 USD</strong> = <span x-text="'Bs. '+tasaVES"></span></span>
+              </div>
+              <button class="btn btn-primary" @click="saveTasas()" :disabled="savingTasas"><span x-text="savingTasas?'Guardando...':'Actualizar tasas'"></span></button>
+            </div>
+            <div>
+              <div class="config-card">
+                <h3 class="config-card__title">Catálogo</h3>
+                <div class="form-group"><label>Moneda por defecto</label><select x-model="monedaDefault" class="form-input"><option>USD</option><option>COP</option><option>VES</option></select></div>
+                <button class="btn btn-secondary" @click="saveMoneda()">Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('alpine:init', function () {
+    Alpine.data('panel', function () {
+      return {
+        currentSection: 'dashboard',
+        sidebarOpen: false,
+        userEmail: '',
+        toasts: [],
+
+        sections: [
+          { key: 'dashboard', label: 'Dashboard', count: 0, icon: 'layout-dashboard' },
+          { key: 'productos', label: 'Productos', count: 0, icon: 'package' },
+          { key: 'categorias', label: 'Categorías', count: 0, icon: 'tags' },
+          { key: 'configuracion', label: 'Configuración', count: 0, icon: 'settings' }
+        ],
+
+        get currentTitle() {
+          var s = this.sections.find(function (s) { return s.key === this.currentSection; }.bind(this));
+          return s ? s.label : 'Panel';
+        },
+
+        get currentSubtitle() {
+          if (this.currentSection === 'categorias') return 'Gestiona las categorías y subcategorías del catálogo';
+          if (this.currentSection === 'configuracion') return 'Tasas de cambio y preferencias del catálogo';
+          if (this.currentSection === 'dashboard') return 'Resumen general del catálogo';
+          return '';
+        },
+
+        async init() {
+          var session = await checkSession(false);
+          if (!session) { window.location.href = 'login.html'; return; }
+          this.userEmail = session.user.email;
+          var hash = window.location.hash.replace('#/', '');
+          if (hash && this.sections.find(function (s) { return s.key === hash; })) this.currentSection = hash;
+          var self = this;
+          window.addEventListener('hashchange', function () {
+            var h = window.location.hash.replace('#/', '');
+            if (h && self.sections.find(function (s) { return s.key === h; })) self.currentSection = h;
+          });
+          this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+        },
+
+        changeSection(key) {
+          this.currentSection = key;
+          window.location.hash = '#/' + key;
+          this.sidebarOpen = false;
+          this.$nextTick(function () { if (window.lucide) lucide.createIcons(); });
+        },
+
+        openProductFromDashboard(prod, mode) {
+          this.currentSection = 'productos';
+          window.location.hash = '#/productos';
+          var self = this;
+          setTimeout(function () {
+            window.dispatchEvent(new CustomEvent('open-product-modal', { detail: Object.assign({}, prod, { _mode: mode || 'edit' }) }));
+          }, 100);
+        },
+
+        async logout() { await signOut(); },
+
+        showToast(text, type) {
+          var id = Date.now(); var self = this;
+          this.toasts.push({ id: id, text: text, type: type || 'success' });
+          var duration = type === 'error' ? 6000 : 4000;
+          setTimeout(function () { self.toasts = self.toasts.filter(function (t) { return t.id !== id; }); }, duration);
+        }
+      };
+    });
+  });
+</script>
+
+</body>
+</html>
