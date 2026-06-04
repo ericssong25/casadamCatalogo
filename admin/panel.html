@@ -7,9 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/admin.css?v=20250601">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/utils.js"></script>
@@ -380,186 +381,581 @@
           </div>
 
           <!-- PRODUCT MODAL -->
-          <div class="modal-overlay" x-show="prodModalOpen" x-transition.opacity @keydown.escape.window="closeProdModal()">
+          <div class="modal-overlay" x-show="prodModalOpen" x-transition.opacity @click.self="confirmCloseModal()" @keydown.escape.window="confirmCloseModal()">
             <div class="modal-card modal-card--wide" x-show="prodModalOpen" x-transition.scale.80>
               <div class="modal-header">
-                <span class="modal-title" x-text="prodModalMode==='create'?'Nuevo producto':(prodModalMode==='view'?'Detalles del producto':'Editar producto')"></span>
-                <button class="modal-close" @click="closeProdModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span class="modal-title" x-text="prodModalMode==='create'?'Nuevo producto':(prodModalMode==='view'?'Detalles del producto':'Editar producto')"></span>
+                  <span class="unsaved-dot" x-show="prodFormDirty && prodModalMode!=='view'" title="Cambios sin guardar"></span>
+                </div>
+                <button class="modal-close" @click="confirmCloseModal()" aria-label="Cerrar"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
               </div>
 
-              <!-- Step indicator (create only, non-clickable) -->
-              <div class="step-indicator" x-show="prodModalMode==='create'">
-                <template x-for="(step,i) in prodSteps" :key="i">
-                  <div class="step-indicator__item" :class="{
-                    'step-indicator__item--done': i < prodStep,
-                    'step-indicator__item--active': i === prodStep,
-                    'step-indicator__item--pending': i > prodStep
-                  }">
-                    <div class="step-indicator__circle" x-text="i < prodStep ? '✓' : i+1"></div>
-                    <span class="step-indicator__label" x-text="step.label"></span>
+              <div class="modal-card-body">
+                <!-- Step indicator (create only) -->
+                <div class="step-indicator" x-show="prodModalMode==='create'">
+                  <template x-for="(step,i) in prodSteps" :key="i">
+                    <div class="step-indicator__item" :class="{
+                      'step-indicator__item--done': i < prodStep,
+                      'step-indicator__item--active': i === prodStep,
+                      'step-indicator__item--pending': i > prodStep
+                    }">
+                      <div class="step-indicator__circle" x-text="i < prodStep ? '✓' : i+1"></div>
+                      <span class="step-indicator__label" x-text="step.label"></span>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Tab selector (edit only) -->
+                <div class="modal-tabs" x-show="prodModalMode==='edit'">
+                  <template x-for="(step,i) in prodSteps" :key="i">
+                    <div class="modal-tab" :class="{'modal-tab--active': prodStep===i}" @click="prodStep = i" x-text="step.label"></div>
+                  </template>
+                </div>
+
+                <!-- === FORM BODY (create/edit) === -->
+                <div class="modal-body" x-show="prodModalMode!=='view'">
+                  <div x-show="prodStep===0">
+                  <div class="form-field-wrap">
+                    <label class="form-label">Código interno <span class="required-star">*</span></label>
+                    <input type="text" x-model="prodForm.codigo_interno" @input="markDirty();prodErrors.codigo_interno=''" class="form-input" :class="{'form-input--error': prodErrors.codigo_interno}" placeholder="Ej: 231063-B">
+                    <span class="error-text" x-show="prodErrors.codigo_interno" x-text="prodErrors.codigo_interno"></span>
                   </div>
-                </template>
-              </div>
-
-              <!-- Tab selector (edit only) -->
-              <div class="modal-tabs" x-show="prodModalMode==='edit'">
-                <template x-for="(step,i) in prodSteps" :key="i">
-                  <div class="modal-tab" :class="{'modal-tab--active': prodStep===i}" @click="prodStep = i" x-text="step.label"></div>
-                </template>
-              </div>
-
-              <!-- === FORM BODY (create/edit) === -->
-              <div class="modal-body" x-show="prodModalMode!=='view'">
-                <div x-show="prodStep===0">
-                  <div class="form-group"><label>Código interno <span class="required-star">*</span></label><input type="text" x-model="prodForm.codigo_interno" @input="markDirty();prodErrors.codigo_interno=''" class="form-input" :class="{'form-input--error': prodErrors.codigo_interno}"><span class="error-text" x-show="prodErrors.codigo_interno" x-text="prodErrors.codigo_interno"></span></div>
-                  <div class="form-group"><label>Nombre <span class="required-star">*</span></label><input type="text" x-model="prodForm.nombre" @input="markDirty();prodErrors.nombre=''" class="form-input" :class="{'form-input--error': prodErrors.nombre}"><span class="error-text" x-show="prodErrors.nombre" x-text="prodErrors.nombre"></span></div>
-                  <div class="form-group"><label>Descripción</label><textarea x-model="prodForm.descripcion_larga" @input="markDirty()" placeholder="Opcional" rows="2"></textarea></div>
-                  <div class="form-group"><label>Categoría <span class="required-star">*</span></label><select x-model="prodForm.categoria_id" @change="onProdCategoriaChange();markDirty();prodErrors.categoria_id=''" class="form-input" :class="{'form-input--error': prodErrors.categoria_id}"><option value="">Seleccionar...</option><template x-for="c in categorias"><option :value="c.id" x-text="c.nombre"></option></template></select><span class="error-text" x-show="prodErrors.categoria_id" x-text="prodErrors.categoria_id"></span></div>
-                  <div class="form-group"><label>Subcategoría</label><select x-model="prodForm.subcategoria_id" @change="markDirty()" class="form-input"><option value="">Ninguna</option><template x-for="s in subcategorias"><option :value="s.id" x-text="s.nombre"></option></template></select></div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Nombre <span class="required-star">*</span></label>
+                    <input type="text" x-model="prodForm.nombre" @input="markDirty();prodErrors.nombre=''" class="form-input" :class="{'form-input--error': prodErrors.nombre}" placeholder="Ej: Libano Miel 19.3×118.4">
+                    <span class="error-text" x-show="prodErrors.nombre" x-text="prodErrors.nombre"></span>
+                  </div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Categoría <span class="required-star">*</span></label>
+                    <select x-model="prodForm.categoria_id" @change="onProdCategoriaChange();markDirty();prodErrors.categoria_id=''" class="form-input" :class="{'form-input--error': prodErrors.categoria_id}">
+                      <option value="">Seleccionar categoría...</option>
+                      <template x-for="c in categorias"><option :value="c.id" x-text="c.nombre"></option></template>
+                    </select>
+                    <span class="error-text" x-show="prodErrors.categoria_id" x-text="prodErrors.categoria_id"></span>
+                  </div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Subcategoría</label>
+                    <select x-model="prodForm.subcategoria_id" @change="markDirty()" class="form-input">
+                      <option value="">Ninguna</option>
+                      <template x-for="s in subcategorias"><option :value="s.id" x-text="s.nombre"></option></template>
+                    </select>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="encoding-warning" x-show="prodForm.descripcion_larga_hadBadEncoding">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      Se detectaron caracteres mal codificados. Guarda los cambios para corregir el texto.
+                    </div>
+                    <label class="form-label">Descripción</label>
+                    <textarea x-model="prodForm.descripcion_larga" @input="markDirty();prodErrors.descripcion_larga=''" class="form-input" rows="5" maxlength="500" placeholder="Descripción larga del producto..." style="min-height:120px;"></textarea>
+                    <div class="char-counter" x-text="(prodForm.descripcion_larga || '').length + ' / 500'"></div>
+                    <span class="error-text" x-show="prodErrors.descripcion_larga" x-text="prodErrors.descripcion_larga"></span>
+                  </div>
                 </div>
+
                 <div x-show="prodStep===1">
-                  <div class="form-group"><label>Ancho</label><input type="number" step="0.001" x-model="prodForm.ancho" @input="markDirty()" class="form-input"></div>
-                  <div class="form-group"><label>Largo</label><input type="number" step="0.001" x-model="prodForm.largo" @input="markDirty()" class="form-input"></div>
-                  <div class="form-group"><label>Espesor</label><input type="number" step="0.001" x-model="prodForm.espesor" @input="markDirty()" class="form-input"></div>
-                  <div class="form-group"><label>Unidad</label><select x-model="prodForm.unidad_medida" @change="markDirty()" class="form-input"><option value="cm">cm</option><option value="mm">mm</option></select></div>
-                  <div class="form-preview" x-show="previewMeasures" x-text="'Preview: ' + previewMeasures"></div>
-                </div>
-                <div x-show="prodStep===2">
-                  <div class="form-group">
-                    <label>Color</label>
-                    <div class="color-field">
-                      <input type="color" class="color-field__picker" :value="colorToHex(prodForm.color)" @input="prodForm.color=$event.target.value;markDirty()">
-                      <input type="text" x-model="prodForm.color" @input="markDirty()" class="form-input" list="colors-list" placeholder="#hex o nombre de color" style="flex:1;">
-                      <datalist id="colors-list">
-                        <option>Blanco</option><option>Beige</option><option>Gris</option>
-                        <option>Negro</option><option>Marrón</option><option>Crema</option>
-                        <option>Multicolor</option><option>Natural</option>
-                      </datalist>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Medidas</label>
+                    <div class="field-grid-3">
+                      <div class="field-with-x">
+                        <input type="number" step="0.001" x-model="prodForm.ancho" @input="markDirty()" class="form-input" placeholder="Ancho">
+                        <span class="field-with-x__symbol">×</span>
+                        <input type="number" step="0.001" x-model="prodForm.largo" @input="markDirty()" class="form-input" placeholder="Largo">
+                      </div>
+                      <div class="field-grid-2-3">
+                        <input type="number" step="0.001" x-model="prodForm.espesor" @input="markDirty()" class="form-input" placeholder="Espesor">
+                        <select x-model="prodForm.unidad_medida" @change="markDirty()" class="form-input">
+                          <option value="cm">cm</option>
+                          <option value="mm">mm</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
-                  <div class="form-group"><label>Acabado</label><input type="text" x-model="prodForm.acabado" @input="markDirty()" class="form-input" list="acabados-list" placeholder="Mate, Pulido, Rectificado..."><datalist id="acabados-list"><template x-for="v in uniqueAcabados"><option :value="v"></option></template></datalist></div>
-                  <div class="form-group"><label>Material</label><input type="text" x-model="prodForm.material" @input="markDirty()" class="form-input" list="materiales-list"><datalist id="materiales-list"><template x-for="v in uniqueMateriales"><option :value="v"></option></template></datalist></div>
-                  <div class="form-group"><label>Uso</label><select x-model="prodForm.uso" @change="markDirty()" class="form-input"><option>Ambos</option><option>Piso</option><option>Pared</option><option>Exterior</option></select></div>
-                  <div class="form-group"><label>Marca</label><input type="text" x-model="prodForm.marca" @input="markDirty()" class="form-input" list="marcas-list"><datalist id="marcas-list"><template x-for="v in uniqueMarcas"><option :value="v"></option></template></datalist></div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-2">
+                      <div>
+                        <label class="form-label">Tipo de borde</label>
+                        <input type="text" x-model="prodForm.tipo_borde" @input="markDirty()" class="form-input" list="tipos-borde" placeholder="Rectificado, Canonical...">
+                        <datalist id="tipos-borde"><option>Rectificado</option><option>Canonical</option><option>Biselado</option><option>Recto</option></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">Formato</label>
+                        <input type="text" x-model="prodForm.formato_instalacion" @input="markDirty()" class="form-input" list="formatos-inst" placeholder="Modular, Tradicional...">
+                        <datalist id="formatos-inst"><option>Modular</option><option>No modular</option><option>Tradicional</option><option>Grande formato</option></datalist>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap" x-show="previewMeasures">
+                    <div class="preview-box">
+                      <div class="preview-box__label">Vista previa</div>
+                      <span x-text="previewMeasures"></span>
+                    </div>
+                  </div>
                 </div>
+
+                <div x-show="prodStep===2">
+                  <div class="form-field-wrap">
+                    <label class="form-label">Color</label>
+                    <div class="color-swatch-field">
+                      <div class="color-swatch-field__preview"
+                           :class="{'color-swatch-field__preview--unknown': !prodForm.color}"
+                           :style="prodForm.color ? 'background:' + colorToHex(prodForm.color) : 'background:#e5e7eb'"
+                           :title="prodForm.color || 'Sin color'">
+                      </div>
+                      <div class="color-swatch-field__input">
+                        <input type="text" x-model="prodForm.color" @input="markDirty()" class="form-input" list="colors-list" placeholder="Nombre o código del color">
+                        <datalist id="colors-list">
+                          <option>Blanco</option><option>Beige</option><option>Gris</option>
+                          <option>Negro</option><option>Marrón</option><option>Miel</option>
+                          <option>Crema</option><option>Multicolor</option><option>Natural</option>
+                          <option>Cenizo</option><option>Plomo</option><option>Camel</option>
+                          <option>Claro</option><option>Oscuro</option><option>Encina</option>
+                          <option>Tilo</option><option>Alba</option><option>Sabino</option>
+                          <option>Roca</option><option>Oslo</option><option>Bruno</option>
+                          <option>Perlado</option><option>Terra</option><option>Avellana</option>
+                        </datalist>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-3">
+                      <div>
+                        <label class="form-label">Acabado</label>
+                        <select x-model="prodForm.acabado" @change="markDirty()" class="form-input">
+                          <option value="">Seleccionar...</option>
+                          <option>Mate</option><option>Pulido</option><option>Brillante</option>
+                          <option>Estructurado</option><option>Rectificado</option><option>Satinado</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="form-label">Material</label>
+                        <select x-model="prodForm.material" @change="markDirty()" class="form-input">
+                          <option value="">Seleccionar...</option>
+                          <option>Porcelanato</option><option>Cerámica</option>
+                          <option>Mármol</option><option>Granito</option><option>Madera</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="form-label">Uso recomendado</label>
+                        <select x-model="prodForm.uso" @change="markDirty()" class="form-input">
+                          <option value="Ambos">Ambos</option>
+                          <option value="Piso">Piso</option>
+                          <option value="Pared">Pared</option>
+                          <option value="Exterior">Exterior</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-2">
+                      <div>
+                        <label class="form-label">Marca</label>
+                        <input type="text" x-model="prodForm.marca" @input="markDirty()" class="form-input" list="marcas-list" placeholder="Cerámica Italia...">
+                        <datalist id="marcas-list"><template x-for="v in uniqueMarcas"><option :value="v"></option></template></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">Tecnología</label>
+                        <input type="text" x-model="prodForm.tecnologia" @input="markDirty()" class="form-input" list="tecnologias-list" placeholder="Dtech, Gres Porcelánico...">
+                        <datalist id="tecnologias-list"><option>Dtech</option><option>Gres Porcelánico</option><option>Cerámica esmaltada</option><option>Porcelanato sinterizado</option></datalist>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-2">
+                      <div>
+                        <label class="form-label">Superficie</label>
+                        <input type="text" x-model="prodForm.superficie" @input="markDirty()" class="form-input" list="superficies-list" placeholder="Esmaltada (GL), Matt...">
+                        <datalist id="superficies-list"><option>Esmaltada (GL)</option><option>Matt (G)</option><option>Lappato</option><option>Natural (R10)</option><option>Antiderrapante</option></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">Grupo absorción</label>
+                        <input type="text" x-model="prodForm.grupo_absorcion" @input="markDirty()" class="form-input" list="grupos-abs" placeholder="BIIb, BIII, AI...">
+                        <datalist id="grupos-abs"><option>AI</option><option>AIIa</option><option>AIIb</option><option>AIII</option><option>BIa</option><option>BIb</option><option>BIIa</option><option>BIIb</option><option>BIII</option></datalist>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-3">
+                      <div>
+                        <label class="form-label">Clasificación ANSI</label>
+                        <input type="text" x-model="prodForm.clasificacion_ansi" @input="markDirty()" class="form-input" list="ansi-list" placeholder="Interior Dry...">
+                        <datalist id="ansi-list"><option>Interior Dry</option><option>Interior Wet</option><option>Exterior</option></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">Coef. fricción</label>
+                        <input type="text" x-model="prodForm.coeficiente_friccion" @input="markDirty()" class="form-input" list="friccion-list" placeholder="Clase 1, R10...">
+                        <datalist id="friccion-list"><option>Clase 1</option><option>Clase 2</option><option>Clase 3</option><option>R9</option><option>R10</option><option>R11</option></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">PEI</label>
+                        <select x-model="prodForm.pei" @change="markDirty()" class="form-input">
+                          <option value="">Seleccionar...</option>
+                          <option value="1">I (PEI 1)</option>
+                          <option value="2">II (PEI 2)</option>
+                          <option value="3">III (PEI 3)</option>
+                          <option value="4">IV (PEI 4)</option>
+                          <option value="5">V (PEI 5)</option>
+                          <option value="">No aplica</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div x-show="prodStep===3">
-                  <div class="form-group"><label>m² por caja</label><input type="number" step="0.001" x-model="prodForm.m2_por_caja" @input="markDirty()" class="form-input"></div>
-                  <div class="form-group"><label>Piezas por caja</label><input type="number" x-model="prodForm.piezas_por_caja" @input="markDirty()" class="form-input"></div>
-                  <div class="form-group"><label>Peso (kg)</label><input type="number" step="0.001" x-model="prodForm.peso" @input="markDirty()" class="form-input"></div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Empaque</label>
+                    <div class="field-grid-3">
+                      <input type="number" step="0.001" x-model="prodForm.m2_por_caja" @input="markDirty()" class="form-input" placeholder="Ej: 1.62">
+                      <input type="number" x-model="prodForm.piezas_por_caja" @input="markDirty()" class="form-input" placeholder="Piezas por caja">
+                      <input type="number" step="0.001" x-model="prodForm.peso" @input="markDirty()" class="form-input" placeholder="Peso (kg)">
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Presentación</label>
+                    <div class="field-grid-3">
+                      <input type="number" x-model="prodForm.cantidad_caras" @input="markDirty()" class="form-input" min="1" placeholder="Ej: 4">
+                      <div style="position:relative;">
+                        <label class="form-label" style="font-size:11px;margin-bottom:4px;">Tasa de variación</label>
+                        <input type="text" x-model="prodForm.variacion_rate" @input="markDirty()" class="form-input" list="variacion-list" placeholder="V1, V2...">
+                        <datalist id="variacion-list"><option>V1</option><option>V2</option><option>V3</option><option>V4</option></datalist>
+                        <span class="info-icon" style="position:absolute;right:8px;top:22px;">
+                          <span style="font-size:9px;">?</span>
+                          <span class="info-icon__tooltip">V1: uniforme, V2: variación leve, V3: variación moderada, V4: variación alta</span>
+                        </span>
+                      </div>
+                      <div style="position:relative;">
+                        <label class="form-label" style="font-size:11px;margin-bottom:4px;">PEI</label>
+                        <select x-model="prodForm.pei" @change="markDirty()" class="form-input">
+                          <option value="">Seleccionar...</option>
+                          <option value="1">I (PEI 1)</option>
+                          <option value="2">II (PEI 2)</option>
+                          <option value="3">III (PEI 3)</option>
+                          <option value="4">IV (PEI 4)</option>
+                          <option value="5">V (PEI 5)</option>
+                          <option value="">No aplica</option>
+                        </select>
+                        <span class="info-icon" style="position:absolute;right:8px;top:22px;">
+                          <span style="font-size:9px;">?</span>
+                          <span class="info-icon__tooltip">Resistencia a la abrasión. PEI I: solo decoración, PEI V: tránsito intenso</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-2">
+                      <div>
+                        <label class="form-label">Colección</label>
+                        <input type="text" x-model="prodForm.coleccion" @input="markDirty()" class="form-input" list="colecciones-list" placeholder="Ceranatto, Cerámic Red...">
+                        <datalist id="colecciones-list"></datalist>
+                      </div>
+                      <div>
+                        <label class="form-label">Calidad</label>
+                        <select x-model="prodForm.calidad" @change="markDirty()" class="form-input">
+                          <option value="">Seleccionar...</option>
+                          <option>Primera</option>
+                          <option>Segunda</option>
+                          <option>Tercera</option>
+                          <option>Comercial</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
                 <div x-show="prodStep===4">
-                  <div class="form-group"><label>Precio USD <span class="required-star">*</span></label><input type="number" step="0.01" x-model="prodForm.precio_usd" @input="markDirty();prodErrors.precio_usd=''" class="form-input" :class="{'form-input--error': prodErrors.precio_usd}"><span class="error-text" x-show="prodErrors.precio_usd" x-text="prodErrors.precio_usd"></span></div>
-                  <div class="form-group toggle-row"><span>Mostrar precio al público</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.mostrar_precio}" @click="prodForm.mostrar_precio=!prodForm.mostrar_precio;markDirty()"></div></div>
-                  <p style="font-size:0.75rem;color:var(--color-text-secondary);" x-show="!prodForm.mostrar_precio">El cliente verá "Consultar precio"</p>
-                  <hr style="margin:1rem 0;border-color:var(--color-border);">
-                  <div class="form-group toggle-row"><span>Disponible</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.disponible}" @click="prodForm.disponible=!prodForm.disponible;markDirty()"></div></div>
-                  <div class="form-group toggle-row"><span>Destacado</span><div class="toggle-sw" :class="{'toggle-sw--on':prodForm.destacado}" @click="prodForm.destacado=!prodForm.destacado;markDirty()"></div></div>
+                  <div class="form-field-wrap">
+                    <label class="form-label">Precio USD <span class="required-star">*</span></label>
+                    <input type="number" step="0.01" x-model="prodForm.precio_usd" @input="markDirty();prodErrors.precio_usd=''" class="form-input" :class="{'form-input--error': prodErrors.precio_usd}" placeholder="0.00">
+                    <span class="error-text" x-show="prodErrors.precio_usd" x-text="prodErrors.precio_usd"></span>
+                    <div class="price-conversion" x-show="previewPrice" x-text="'≈ ' + previewPrice"></div>
+                  </div>
+                  <hr style="margin:16px 0;border-color:var(--color-border);">
+                  <div class="form-label" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);margin-bottom:12px;font-weight:600;">Estado</div>
+                  <div class="toggle-row">
+                    <div>
+                      <div class="toggle-row__label">Mostrar precio al público</div>
+                      <div class="toggle-row__helper">Si está desactivado, el catálogo muestra "Consultar precio"</div>
+                    </div>
+                    <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.mostrar_precio}" @click="prodForm.mostrar_precio=!prodForm.mostrar_precio;markDirty()"></div>
+                  </div>
+                  <div class="toggle-row">
+                    <div>
+                      <div class="toggle-row__label">Disponible</div>
+                      <div class="toggle-row__helper">Los productos no disponibles aparecen marcados en el catálogo</div>
+                    </div>
+                    <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.disponible}" @click="prodForm.disponible=!prodForm.disponible;markDirty()"></div>
+                  </div>
+                  <div class="toggle-row">
+                    <div>
+                      <div class="toggle-row__label">Destacado</div>
+                      <div class="toggle-row__helper">Los destacados aparecen primero y con un sello rojo</div>
+                    </div>
+                    <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.destacado}" @click="prodForm.destacado=!prodForm.destacado;markDirty()"></div>
+                  </div>
                 </div>
+
                 <div x-show="prodStep===5">
-                  <p style="font-size:0.78rem;color:var(--color-text-secondary);margin-bottom:0.75rem;">Arrastra imágenes o haz clic en + para agregar. JPG, PNG, WebP. Máx 5 MB.</p>
-                  <div class="image-upload-zone" @dragover.prevent @drop.prevent="$refs.imgInput.files=$event.dataTransfer.files;onImageFiles({target:$refs.imgInput})">
+                  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px;">Arrastra las imágenes para reordenarlas. JPG, PNG, WebP. Máx 10 imágenes, 5 MB c/u.</p>
+                  <div class="image-upload-zone" x-data="{ draggingOver: false }"
+                       @dragover.prevent="draggingOver = true"
+                       @dragleave.prevent="draggingOver = false"
+                       @drop.prevent="draggingOver = false; $refs.imgInput.files = $event.dataTransfer.files; onImageFiles({target:$refs.imgInput})"
+                       :class="{'drag-over': draggingOver}"
+                       style="min-height:100px;">
                     <input type="file" x-ref="imgInput" multiple accept="image/jpeg,image/png,image/webp" @change="onImageFiles($event)" style="display:none;">
-                    <!-- Empty state (no images yet) -->
+                    <div class="drag-over-msg"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Suelta las imágenes aquí</div>
                     <template x-if="activeImages.length===0">
                       <div class="image-upload-placeholder" @click="$refs.imgInput.click()">
                         <i data-lucide="upload" style="width:20px;height:20px;margin-bottom:4px;"></i> Agregar imágenes
                       </div>
                     </template>
-                    <!-- Grid + add button -->
-                    <div class="image-grid-wrapper" x-show="activeImages.length>0">
-                      <div class="image-grid">
+                    <div class="image-grid-wrapper" x-show="activeImages.length>0" x-init="$nextTick(function() {
+                      var el = document.querySelector('.image-grid-sortable');
+                      if (el && window.Sortable) {
+                        new window.Sortable(el, {
+                          animation: 150,
+                          ghostClass: 'image-grid__item--dragging',
+                          onEnd: function(evt) {
+                            var item = prodImages.splice(evt.oldIndex, 1)[0];
+                            prodImages.splice(evt.newIndex, 0, item);
+                            markDirty();
+                          }
+                        });
+                      }
+                    })">
+                      <div class="image-grid image-grid-sortable">
                         <template x-for="(img,i) in prodImages" :key="img.id || img.preview || i">
-                          <div class="image-grid__item" x-show="!img.toDelete">
-                            <img :src="img.preview" style="width:100%;height:100%;object-fit:cover;">
-                            <span class="image-grid__star" :class="{'image-grid__star--active':img.es_principal}" @click="setPrincipalImage(i)"><i data-lucide="star" style="width:14px;height:14px;"></i></span>
+                          <div class="image-grid__item" x-show="!img.toDelete" :data-id="i">
+                            <img :src="img.preview" draggable="false">
+                            <span class="image-grid__star"
+                                  :class="{'image-grid__star--active': img.es_principal}"
+                                  @click="setPrincipalImage(i)"
+                                  :title="img.es_principal ? 'Imagen principal' : 'Marcar como principal'">
+                              <i data-lucide="star" style="width:13px;height:13px;"></i>
+                            </span>
                             <span class="image-grid__badge" x-show="img.es_principal">Principal</span>
-                            <span class="image-grid__remove" @click="removeImage(i)"><i data-lucide="x" style="width:12px;height:12px;"></i></span>
-                            <div class="image-grid__arrows" x-show="activeImages.length>1"><button @click="moveImage(i,-1)"><i data-lucide="chevron-up" style="width:10px;height:10px;"></i></button><button @click="moveImage(i,1)"><i data-lucide="chevron-down" style="width:10px;height:10px;"></i></button></div>
+                            <span class="image-grid__remove" @click.stop="removeImage(i)" title="Eliminar imagen">
+                              <i data-lucide="x" style="width:11px;height:11px;"></i>
+                            </span>
                           </div>
                         </template>
-                        <!-- Add more button -->
-                        <div class="image-grid__add" @click="$refs.imgInput.click()">
-                          <i data-lucide="plus" style="width:22px;height:22px;color:var(--color-text-secondary);"></i>
+                        <div class="image-grid__add" x-show="activeImages.length < 10" @click="$refs.imgInput.click()" title="Agregar imagen">
+                          <i data-lucide="plus" style="width:22px;height:22px;"></i>
+                        </div>
+                      </div>
+                      <div class="image-grid__limit-note" x-show="activeImages.length >= 10">
+                        Máximo 10 imágenes por producto.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div x-show="prodStep===6">
+                  <!-- USO Y RESISTENCIA -->
+                  <div class="tab-subsection">
+                    <div class="tab-subsection__title">Uso y resistencia</div>
+                    <div class="form-field-wrap">
+                      <div class="field-grid-2">
+                        <div>
+                          <label class="form-label">Tráfico</label>
+                          <input type="text" x-model="prodForm.trafico" @input="markDirty()" class="form-input" list="trafico-list" placeholder="Comercial General, Residencial...">
+                          <datalist id="trafico-list"><option>Residencial</option><option>Comercial General</option><option>Alto Tráfico</option><option>Industrial</option></datalist>
+                        </div>
+                        <div>
+                          <label class="form-label">País de origen</label>
+                          <input type="text" x-model="prodForm.pais_origen" @input="markDirty()" class="form-input" list="paises-list" placeholder="Colombia, Brasil, España...">
+                          <datalist id="paises-list"><option>Colombia</option><option>Brasil</option><option>España</option><option>Italia</option><option>Argentina</option><option>México</option></datalist>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-              <!-- === VIEW-ONLY BODY === -->
-              <div class="modal-body" x-show="prodModalMode==='view'">
-                <!-- Código y Nombre -->
-                <div class="view-section">
-                  <div class="view-grid">
-                    <div class="view-field"><div class="view-field__label">Código interno</div><div class="view-field__value" x-text="prodForm.codigo_interno"></div></div>
-                    <div class="view-field"><div class="view-field__label">Nombre</div><div class="view-field__value" x-text="prodForm.nombre"></div></div>
-                    <div class="view-field">
-                      <div class="view-field__label">Categoría</div>
-                      <div class="view-field__value" x-text="getCatNameById(prodForm.categoria_id)"></div>
-                    </div>
-                    <div class="view-field">
-                      <div class="view-field__label">Subcategoría</div>
-                      <div class="view-field__value" x-text="prodForm.subcategoria_id ? getSubcatNameById(prodForm.subcategoria_id) : '—'"></div>
-                    </div>
-                  </div>
-                  <div class="view-field" x-show="prodForm.descripcion_larga" style="margin-top:10px;">
-                    <div class="view-field__label">Descripción</div>
-                    <div class="view-field__value" style="font-weight:400;font-size:13px;color:var(--color-text-secondary);line-height:1.6;" x-text="prodForm.descripcion_larga"></div>
-                  </div>
-                </div>
-                <!-- Medidas -->
-                <div class="view-section">
-                  <div class="view-section__title">Medidas</div>
-                  <div class="view-grid">
-                    <div class="view-field"><div class="view-field__label">Ancho</div><div class="view-field__value" x-text="(parseFloat(prodForm.ancho)||0)+' '+prodForm.unidad_medida"></div></div>
-                    <div class="view-field"><div class="view-field__label">Largo</div><div class="view-field__value" x-text="(parseFloat(prodForm.largo)||0)+' '+prodForm.unidad_medida"></div></div>
-                    <div class="view-field"><div class="view-field__label">Espesor</div><div class="view-field__value" x-text="(parseFloat(prodForm.espesor)||0)+' '+prodForm.unidad_medida"></div></div>
-                    <div class="view-field"><div class="view-field__label">Unidad</div><div class="view-field__value" x-text="prodForm.unidad_medida"></div></div>
-                  </div>
-                </div>
-                <!-- Características -->
-                <div class="view-section">
-                  <div class="view-section__title">Características</div>
-                  <div class="view-grid">
-                    <div class="view-field"><div class="view-field__label">Color</div><div class="view-field__value" x-text="prodForm.color || '—'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Acabado</div><div class="view-field__value" x-text="prodForm.acabado || '—'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Material</div><div class="view-field__value" x-text="prodForm.material || '—'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Uso</div><div class="view-field__value" x-text="prodForm.uso || '—'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Marca</div><div class="view-field__value" x-text="prodForm.marca || '—'"></div></div>
-                  </div>
-                </div>
-                <!-- Empaque -->
-                <div class="view-section">
-                  <div class="view-section__title">Empaque</div>
-                  <div class="view-grid">
-                    <div class="view-field"><div class="view-field__label">m² por caja</div><div class="view-field__value" x-text="(parseFloat(prodForm.m2_por_caja)||0)+' m²'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Piezas por caja</div><div class="view-field__value" x-text="parseInt(prodForm.piezas_por_caja)||'—'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Peso</div><div class="view-field__value" x-text="(parseFloat(prodForm.peso)||0)+' kg'"></div></div>
-                  </div>
-                </div>
-                <!-- Precio y Estado -->
-                <div class="view-section">
-                  <div class="view-section__title">Precio y Estado</div>
-                  <div class="view-grid">
-                    <div class="view-field"><div class="view-field__label">Precio USD</div><div class="view-field__value" x-text="'$ '+(parseFloat(prodForm.precio_usd)||0).toFixed(2)"></div></div>
-                    <div class="view-field"><div class="view-field__label">Mostrar precio</div><div class="view-field__value" x-text="prodForm.mostrar_precio?'Sí':'No (consultar)'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Disponible</div><div class="view-field__value" x-text="prodForm.disponible?'Sí':'No'"></div></div>
-                    <div class="view-field"><div class="view-field__label">Destacado</div><div class="view-field__value" x-text="prodForm.destacado?'Sí':'No'"></div></div>
-                  </div>
-                </div>
-                <!-- Imágenes -->
-                <div class="view-section" x-show="prodImages.length>0">
-                  <div class="view-section__title">Imágenes</div>
-                  <div class="view-images">
-                    <template x-for="(img,i) in prodImages" :key="i">
-                      <div class="view-images__item" :class="{'view-images__item--principal':img.es_principal}">
-                        <img :src="img.preview || img.url" loading="lazy">
-                        <div class="view-images__chip" x-show="img.es_principal">Principal</div>
+                    <div class="toggle-row">
+                      <div>
+                        <div class="toggle-row__label">Alto tráfico</div>
+                        <div class="toggle-row__helper">Apto para zonas de alto tránsito comercial o industrial</div>
                       </div>
-                    </template>
+                      <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.alto_trafico}" @click="prodForm.alto_trafico=!prodForm.alto_trafico;markDirty()"></div>
+                    </div>
+                    <div class="toggle-row">
+                      <div>
+                        <div class="toggle-row__label">Apto para terrazas</div>
+                        <div class="toggle-row__helper">Resistente a intemperie y cambios de temperatura</div>
+                      </div>
+                      <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.terrazas}" @click="prodForm.terrazas=!prodForm.terrazas;markDirty()"></div>
+                    </div>
+                    <div class="toggle-row">
+                      <div>
+                        <div class="toggle-row__label">Resistente a manchas</div>
+                        <div class="toggle-row__helper">Superficie con tratamiento anti-manchas</div>
+                      </div>
+                      <div class="toggle-sw" :class="{'toggle-sw--on':prodForm.resistencia_manchas}" @click="prodForm.resistencia_manchas=!prodForm.resistencia_manchas;markDirty()"></div>
+                    </div>
+                  </div>
+
+                  <!-- GARANTÍA -->
+                  <div class="tab-subsection">
+                    <div class="tab-subsection__title">Garantía</div>
+                    <div class="form-field-wrap">
+                      <label class="form-label">Duración de la garantía</label>
+                      <div class="compound-input">
+                        <input type="number" step="1" min="1" x-model="prodForm.garantia_anios" @input="markDirty()" placeholder="Cantidad">
+                        <select x-model="prodForm.garantia_unidad" @change="markDirty()">
+                          <option value="años">Años</option>
+                          <option value="meses">Meses</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="form-field-wrap">
+                      <label class="form-label">Condiciones</label>
+                      <textarea x-model="prodForm.garantia_condiciones" @input="markDirty()" class="form-input" rows="3" placeholder="Condiciones adicionales para la validez de la garantía..."></textarea>
+                    </div>
+                  </div>
+
+                  <!-- INSTALACIÓN -->
+                  <div class="tab-subsection">
+                    <div class="tab-subsection__title">Instalación</div>
+                    <div class="form-field-wrap">
+                      <label class="form-label">Detalle de instalación</label>
+                      <textarea x-model="prodForm.detalle_instalacion" @input="markDirty()" class="form-input" rows="4" placeholder="Áreas de instalación permitidas, recomendaciones, advertencias..."></textarea>
+                    </div>
+                    <div class="form-field-wrap">
+                      <label class="form-label">Observaciones</label>
+                      <textarea x-model="prodForm.observaciones" @input="markDirty()" class="form-input" rows="2" placeholder="Rotulado, lote, fecha de producción..."></textarea>
+                    </div>
+                    <div class="form-field-wrap">
+                      <label class="form-label">Política de imagen</label>
+                      <textarea x-model="prodForm.politica_imagen" @input="markDirty()" class="form-input" rows="2" placeholder="Disclaimer sobre colores y representación de imágenes..."></textarea>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </div><!-- /.modal-body -->
+
+              <!-- === VIEW-ONLY BODY === -->
+              <div class="modal-body prod-view-modal" x-show="prodModalMode==='view'" x-data="{ viewTab: 'info' }">
+                <div class="prod-view-tabs">
+                  <button class="prod-view-tab" :class="{'prod-view-tab--active':viewTab==='info'}" @click="viewTab='info'">Información general</button>
+                  <button class="prod-view-tab" :class="{'prod-view-tab--active':viewTab==='medidas'}" @click="viewTab='medidas'">Medidas y empaque</button>
+                  <button class="prod-view-tab" :class="{'prod-view-tab--active':viewTab==='especificaciones'}" @click="viewTab='especificaciones'">Especificaciones</button>
+                  <button class="prod-view-tab" :class="{'prod-view-tab--active':viewTab==='condiciones'}" @click="viewTab='condiciones'">Condiciones</button>
+                </div>
+
+                <!-- TAB: Info general -->
+                <div x-show="viewTab==='info'" class="prod-view-content">
+                  <div class="view-section">
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Código interno</div><div class="view-field__value" x-text="prodForm.codigo_interno"></div></div>
+                      <div class="view-field"><div class="view-field__label">Nombre</div><div class="view-field__value" x-text="prodForm.nombre"></div></div>
+                      <div class="view-field"><div class="view-field__label">Categoría</div><div class="view-field__value" x-text="getCatNameById(prodForm.categoria_id)"></div></div>
+                      <div class="view-field"><div class="view-field__label">Subcategoría</div><div class="view-field__value" x-text="prodForm.subcategoria_id ? getSubcatNameById(prodForm.subcategoria_id) : '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Colección</div><div class="view-field__value" x-text="prodForm.coleccion || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Marca</div><div class="view-field__value" x-text="prodForm.marca || '—'"></div></div>
+                    </div>
+                    <div class="view-field" x-show="prodForm.descripcion_larga" style="margin-top:10px;">
+                      <div class="view-field__label">Descripción</div>
+                      <div class="view-field__value" style="font-weight:400;font-size:13px;color:var(--color-text-secondary);line-height:1.6;" x-text="prodForm.descripcion_larga"></div>
+                    </div>
+                  </div>
+                  <div class="view-section">
+                    <div class="view-section__title">Precio y disponibilidad</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Precio USD</div><div class="view-field__value" x-text="'$ '+(parseFloat(prodForm.precio_usd)||0).toFixed(2)"></div></div>
+                      <div class="view-field"><div class="view-field__label">Mostrar precio</div><div class="view-field__value" x-text="prodForm.mostrar_precio?'Sí':'No (consultar)'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Disponible</div><div class="view-field__value" :style="prodForm.disponible?'color:#16a34a':'color:#dc2626'" x-text="prodForm.disponible?'Sí':'No'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Destacado</div><div class="view-field__value" x-text="prodForm.destacado?'Sí':'No'"></div></div>
+                    </div>
+                  </div>
+                  <div class="view-section" x-show="prodImages.length>0">
+                    <div class="view-section__title">Imágenes</div>
+                    <div class="view-images view-images--grid">
+                      <template x-for="(img,i) in prodImages" :key="i">
+                        <div class="view-images__item" :class="{'view-images__item--principal':img.es_principal}">
+                          <img :src="img.preview || img.url" loading="lazy">
+                          <div class="view-images__chip" x-show="img.es_principal">Principal</div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: Medidas y empaque -->
+                <div x-show="viewTab==='medidas'" class="prod-view-content">
+                  <div class="view-section">
+                    <div class="view-section__title">Dimensiones</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Ancho</div><div class="view-field__value" x-text="(parseFloat(prodForm.ancho)||0)+' '+prodForm.unidad_medida"></div></div>
+                      <div class="view-field"><div class="view-field__label">Largo</div><div class="view-field__value" x-text="(parseFloat(prodForm.largo)||0)+' '+prodForm.unidad_medida"></div></div>
+                      <div class="view-field"><div class="view-field__label">Espesor</div><div class="view-field__value" x-text="(parseFloat(prodForm.espesor)||0)+' '+prodForm.unidad_medida"></div></div>
+                      <div class="view-field"><div class="view-field__label">Unidad</div><div class="view-field__value" x-text="prodForm.unidad_medida"></div></div>
+                      <div class="view-field"><div class="view-field__label">Tipo de borde</div><div class="view-field__value" x-text="prodForm.tipo_borde || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Formato</div><div class="view-field__value" x-text="prodForm.formato_instalacion || '—'"></div></div>
+                    </div>
+                  </div>
+                  <div class="view-section">
+                    <div class="view-section__title">Empaque</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">m² por caja</div><div class="view-field__value" x-text="(parseFloat(prodForm.m2_por_caja)||0)+' m²'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Piezas por caja</div><div class="view-field__value" x-text="parseInt(prodForm.piezas_por_caja)||'—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Peso por caja</div><div class="view-field__value" x-text="(parseFloat(prodForm.peso)||0)+' kg'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Caras diferenciadas</div><div class="view-field__value" x-text="prodForm.cantidad_caras || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Variation rate</div><div class="view-field__value" x-text="prodForm.variacion_rate || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">PEI</div><div class="view-field__value" x-text="prodForm.pei || '—'"></div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: Especificaciones -->
+                <div x-show="viewTab==='especificaciones'" class="prod-view-content">
+                  <div class="view-section">
+                    <div class="view-section__title">Apariencia</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Color</div><div class="view-field__value" x-text="prodForm.color || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Acabado</div><div class="view-field__value" x-text="prodForm.acabado || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Material</div><div class="view-field__value" x-text="prodForm.material || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Uso</div><div class="view-field__value" x-text="prodForm.uso || '—'"></div></div>
+                    </div>
+                  </div>
+                  <div class="view-section">
+                    <div class="view-section__title">Técnico</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Tecnología</div><div class="view-field__value" x-text="prodForm.tecnologia || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Superficie</div><div class="view-field__value" x-text="prodForm.superficie || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Grupo absorción</div><div class="view-field__value" x-text="prodForm.grupo_absorcion || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Clasificación ANSI</div><div class="view-field__value" x-text="prodForm.clasificacion_ansi || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Coef. fricción</div><div class="view-field__value" x-text="prodForm.coeficiente_friccion || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Resistencia a manchas</div><div class="view-field__value" :style="prodForm.resistencia_manchas?'color:#16a34a':'color:#dc2626'" x-text="prodForm.resistencia_manchas?'Sí':'No'"></div></div>
+                      <div class="view-field"><div class="view-field__label">País de origen</div><div class="view-field__value" x-text="prodForm.pais_origen || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Calidad</div><div class="view-field__value" x-text="prodForm.calidad || '—'"></div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB: Condiciones -->
+                <div x-show="viewTab==='condiciones'" class="prod-view-content">
+                  <div class="view-section">
+                    <div class="view-section__title">Tráfico y uso</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Tráfico</div><div class="view-field__value" x-text="prodForm.trafico || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Alto tráfico</div><div class="view-field__value" :style="prodForm.alto_trafico?'color:#16a34a':'color:#dc2626'" x-text="prodForm.alto_trafico?'Sí':'No'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Terrazas</div><div class="view-field__value" :style="prodForm.terrazas?'color:#16a34a':'color:#dc2626'" x-text="prodForm.terrazas?'Sí':'No'"></div></div>
+                    </div>
+                  </div>
+                  <div class="view-section">
+                    <div class="view-section__title">Garantía</div>
+                    <div class="view-grid view-grid--2">
+                      <div class="view-field"><div class="view-field__label">Duración</div><div class="view-field__value" x-text="(prodForm.garantia_anios || '—')+' '+(prodForm.garantia_unidad || 'años')"></div></div>
+                      <div class="view-field"><div class="view-field__label">Condiciones</div><div class="view-field__value" x-text="prodForm.garantia_condiciones || '—'"></div></div>
+                    </div>
+                  </div>
+                  <div class="view-section">
+                    <div class="view-section__title">Información adicional</div>
+                    <div class="view-field" x-show="prodForm.detalle_instalacion"><div class="view-field__label">Detalle de instalación</div><div class="view-field__value" x-text="prodForm.detalle_instalacion"></div></div>
+                    <div class="view-field" x-show="prodForm.observaciones" style="margin-top:8px;"><div class="view-field__label">Observaciones</div><div class="view-field__value" x-text="prodForm.observaciones"></div></div>
+                    <div class="view-field" x-show="prodForm.politica_imagen" style="margin-top:8px;"><div class="view-field__label">Política de imagen</div><div class="view-field__value" x-text="prodForm.politica_imagen"></div></div>
+                  </div>
+                </div>
+              </div><!-- /.modal-body prod-view-modal -->
+              </div><!-- /.modal-card-body -->
+
               <!-- === FOOTER: create / edit === -->
               <div class="modal-footer" x-show="prodModalMode!=='view'" style="justify-content:space-between;">
                 <div style="display:flex;gap:0.5rem;">
@@ -567,15 +963,15 @@
                     <button class="btn btn-ghost btn-sm" x-show="prodStep>0" @click="prodStep--"><i data-lucide="chevron-left" style="width:14px;height:14px;"></i> Anterior</button>
                   </template>
                   <template x-if="prodModalMode==='create'">
-                    <button class="btn btn-ghost btn-sm" x-show="prodStep>0 && prodStep<5" @click="prodStep++">Omitir <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
+                    <button class="btn btn-ghost btn-sm" x-show="prodStep>0 && prodStep<6" @click="prodStep++">Omitir <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
                   </template>
                 </div>
                 <div style="display:flex;gap:0.5rem;">
-                  <button class="btn btn-secondary" @click="closeProdModal()">Cancelar</button>
-                  <template x-if="prodModalMode==='create' && prodStep<5">
+                  <button class="btn btn-secondary" @click="confirmCloseModal()">Cancelar</button>
+                  <template x-if="prodModalMode==='create' && prodStep<6">
                     <button class="btn btn-primary" @click="nextStep()">Siguiente <i data-lucide="chevron-right" style="width:14px;height:14px;"></i></button>
                   </template>
-                  <template x-if="prodModalMode==='edit' || (prodModalMode==='create' && prodStep===5)">
+                  <template x-if="prodModalMode==='edit' || (prodModalMode==='create' && prodStep===6)">
                     <button class="btn btn-primary" @click="saveProducto()" :disabled="prodSaving"><span class="spinner" x-show="prodSaving"></span><span x-text="prodSaving?'Guardando...':(prodModalMode==='create'?'Guardar producto':'Guardar cambios')"></span></button>
                   </template>
                 </div>
@@ -586,7 +982,7 @@
                 <button class="btn btn-secondary" @click="closeProdModal()">Cerrar</button>
                 <button class="btn btn-primary" @click="openProdModalFromView()"><i data-lucide="pencil" style="width:15px;height:15px;"></i> Editar</button>
               </div>
-            </div>
+            </div><!-- /.modal-card -->
           </div>
 
           <!-- DELETE MODAL -->
@@ -703,7 +1099,52 @@
       };
     });
   });
-</script>
+  </script>
+
+  <!-- Reusable Alert / Confirm Dialog -->
+  <div
+    x-data="alertDialog"
+    x-show="open"
+    x-cloak
+    class="alert-dialog__overlay"
+    @keydown.escape.window="cancel()"
+    @click.self="cancel()"
+    role="alertdialog"
+    aria-modal="true"
+    :aria-labelledby="open ? 'alert-dialog-title' : null"
+    :aria-describedby="open ? 'alert-dialog-message' : null"
+  >
+    <div
+      class="alert-dialog__card"
+      :class="'alert-dialog__card--' + variant"
+      @click.stop
+    >
+      <div class="alert-dialog__icon-wrap" :class="'alert-dialog__icon-wrap--' + variant">
+        <svg x-show="variant === 'warning' || variant === 'destructive'" class="alert-dialog__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <svg x-show="variant === 'info'" class="alert-dialog__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <svg x-show="variant === 'success'" class="alert-dialog__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+
+      <h2 id="alert-dialog-title" class="alert-dialog__title" x-text="title"></h2>
+      <p id="alert-dialog-message" class="alert-dialog__message" x-text="message" x-show="message"></p>
+
+      <div class="alert-dialog__actions">
+        <button type="button" class="btn btn--secondary" @click="cancel()" x-text="cancelText" x-ref="cancelBtn"></button>
+        <button type="button" class="btn btn--primary" @click="confirm()" x-text="confirmText"></button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>

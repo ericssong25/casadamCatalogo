@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/styles.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="config.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/producto.js"></script>
@@ -184,33 +185,34 @@
 
       <!-- Información -->
       <div class="product-info">
-        <div class="product-info__category" x-text="product.categoria + ' / ' + product.subcategoria"></div>
 
-        <h1 class="product-info__name" x-text="product.nombre"></h1>
+        <!-- 2.1 Category chip + title + code -->
+        <div class="product-meta" x-text="(product.categoria || '').toUpperCase() + ' / ' + product.codigo_interno"></div>
+        <h1 class="product-title" x-text="product.nombre"></h1>
+        <div class="product-code" x-text="'Código: ' + product.codigo_interno"></div>
 
-        <div class="product-info__code" x-text="'Código: ' + product.codigo_interno"></div>
-
-        <!-- Badges -->
-        <div class="product-info__badges">
-          <span class="badge badge--destacado" x-show="product.destacado">Destacado</span>
-          <span class="badge" :class="disponibilidadBadge.cls" x-text="disponibilidadBadge.text"></span>
+        <!-- 2.2 Badges -->
+        <div class="product-badges">
+          <span class="badge badge--featured" x-show="product.destacado">Destacado</span>
+          <span class="badge" :class="product.disponible ? 'badge--available' : 'badge--unavailable'"
+                x-text="product.disponible ? 'Disponible' : 'No disponible'"></span>
         </div>
 
-        <!-- Precio -->
-        <div class="product-info__price-block">
+        <!-- 2.3 Price block -->
+        <div class="product-price">
           <template x-if="product.mostrar_precio">
             <div>
-              <div class="product-info__price" x-text="formatPrice(product.precio_usd, true)"></div>
-              <div class="product-info__price-alt">
+              <div class="product-price__main" x-text="formatPrice(product.precio_usd, true)"></div>
+              <div class="product-price__alts">
                 <template x-for="mon in otrasMonedas" :key="mon">
-                  <span class="product-info__price-alt-item" x-text="formatAltPrice(product.precio_usd, mon)"></span>
+                  <span class="product-price__alt-item" x-text="formatAltPrice(product.precio_usd, mon)"></span>
                 </template>
               </div>
             </div>
           </template>
           <template x-if="!product.mostrar_precio">
-            <div class="product-info__consult">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <div class="product-price__consult">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="16" x2="12" y2="12"></line>
                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
@@ -220,62 +222,238 @@
           </template>
         </div>
 
-        <!-- Separador -->
-        <hr class="product-info__divider">
+        <!-- 2.4 Divider -->
+        <hr class="product-divider">
 
-        <!-- Especificaciones -->
-        <div class="specs">
-          <h2 class="specs__title">Especificaciones</h2>
-          <dl class="specs-table">
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Medidas</dt>
-              <dd class="specs-table__value" x-text="formatMeasures(product)"></dd>
+        <!-- 2.5 Especificaciones -->
+        <section class="spec-section">
+          <h2 class="spec-section__title">Especificaciones</h2>
+          <dl class="spec-list">
+
+            <div class="spec-row" x-show="product.ancho || product.largo || product.espesor">
+              <dt>Medidas</dt>
+              <dd x-text="formatMedidas(product)"></dd>
             </div>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Color</dt>
-              <dd class="specs-table__value" x-text="product.color"></dd>
+
+            <div class="spec-row" x-show="product.color">
+              <dt>Color</dt>
+              <dd x-text="sanitize(product.color)"></dd>
             </div>
-            <template x-if="product.acabado !== 'N/A'">
-              <div class="specs-table__row">
-                <dt class="specs-table__label">Acabado</dt>
-                <dd class="specs-table__value" x-text="product.acabado"></dd>
-              </div>
-            </template>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Material</dt>
-              <dd class="specs-table__value" x-text="product.material"></dd>
+
+            <div class="spec-row" x-show="product.acabado">
+              <dt>Acabado</dt>
+              <dd x-text="sanitize(product.acabado)"></dd>
             </div>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Uso recomendado</dt>
-              <dd class="specs-table__value" x-text="product.uso"></dd>
+
+            <div class="spec-row" x-show="product.material">
+              <dt>Material</dt>
+              <dd x-text="sanitize(product.material)"></dd>
             </div>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Marca</dt>
-              <dd class="specs-table__value" x-text="product.marca"></dd>
+
+            <div class="spec-row" x-show="product.uso">
+              <dt>Uso recomendado</dt>
+              <dd x-text="product.uso"></dd>
             </div>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Piezas por caja</dt>
-              <dd class="specs-table__value" x-text="product.piezas_por_caja"></dd>
+
+            <div class="spec-row" x-show="product.marca">
+              <dt>Marca</dt>
+              <dd x-text="sanitize(product.marca)"></dd>
             </div>
-            <div class="specs-table__row" x-show="product.m2_por_caja > 0">
-              <dt class="specs-table__label">m² por caja</dt>
-              <dd class="specs-table__value" x-text="product.m2_por_caja"></dd>
+
+            <div class="spec-row" x-show="product.piezas_por_caja">
+              <dt>Piezas por caja</dt>
+              <dd x-text="product.piezas_por_caja"></dd>
             </div>
-            <div class="specs-table__row">
-              <dt class="specs-table__label">Peso por caja</dt>
-              <dd class="specs-table__value" x-text="product.peso + ' kg'"></dd>
+
+            <div class="spec-row" x-show="product.m2_por_caja">
+              <dt>m² por caja</dt>
+              <dd x-text="parseFloat(product.m2_por_caja).toFixed(2) + ' m²'"></dd>
             </div>
+
+            <div class="spec-row" x-show="product.peso">
+              <dt>Peso por caja</dt>
+              <dd x-text="parseFloat(product.peso) + ' kg'"></dd>
+            </div>
+
           </dl>
-        </div>
+        </section>
 
-        <!-- Separador -->
-        <hr class="product-info__divider">
+        <!-- 2.6 Descripción -->
+        <section class="product-description" x-show="product.descripcion_larga">
+          <h2 class="product-description__title">Descripción</h2>
+          <p class="product-description__body" x-text="sanitize(product.descripcion_larga)"></p>
+        </section>
 
-        <!-- Descripción -->
-        <div class="specs">
-          <h2 class="specs__title">Descripción</h2>
-          <p class="product-info__desc" x-text="product.descripcion_larga"></p>
-        </div>
+        <!-- 2.7 Extended information accordions -->
+        <div class="accordions">
+
+          <!-- Instalación -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.detalle_instalacion || product.trafico || product.alto_trafico || product.terrazas">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Instalación</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <div class="instalacion-badges" x-show="product.trafico || product.alto_trafico || product.terrazas">
+                  <span class="info-badge" x-show="product.trafico" x-text="product.trafico"></span>
+                  <span class="info-badge info-badge--green" x-show="product.alto_trafico">Alto tráfico</span>
+                  <span class="info-badge info-badge--blue" x-show="product.terrazas">Apto terrazas</span>
+                </div>
+                <p x-show="product.detalle_instalacion" x-text="sanitize(product.detalle_instalacion)"></p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Garantía -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.garantia_anios">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Garantía</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <div class="garantia-inline">
+                  <svg class="garantia-inline__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <span class="garantia-inline__text">
+                    <strong x-text="product.garantia_anios"></strong>
+                    <span x-text="(product.garantia_unidad || 'años') + ' de garantía'"></span>
+                    <span x-show="product.garantia_condiciones" x-text="'. ' + product.garantia_condiciones" style="display:block;font-weight:400;font-size:13px;margin-top:4px;color:#6b7280;"></span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Políticas -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.politica_imagen">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Políticas de imagen</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <p x-text="sanitize(product.politica_imagen)"></p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Datos técnicos -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.superficie || product.grupo_absorcion || product.clasificacion_ansi || product.coeficiente_friccion || product.pei || product.resistencia_manchas !== null || product.tipo_borde || product.formato_instalacion || product.cantidad_caras || product.variacion_rate">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Datos técnicos</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <dl class="spec-list spec-list--accordion">
+                  <div class="spec-row" x-show="product.tipo_borde">
+                    <dt>Tipo de borde</dt>
+                    <dd x-text="product.tipo_borde"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.formato_instalacion">
+                    <dt>Formato</dt>
+                    <dd x-text="product.formato_instalacion"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.superficie">
+                    <dt>Superficie</dt>
+                    <dd x-text="product.superficie"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.grupo_absorcion">
+                    <dt>Grupo absorción</dt>
+                    <dd x-text="product.grupo_absorcion"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.clasificacion_ansi">
+                    <dt>Clasificación ANSI</dt>
+                    <dd x-text="product.clasificacion_ansi"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.coeficiente_friccion">
+                    <dt>Coef. fricción</dt>
+                    <dd x-text="product.coeficiente_friccion"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.pei">
+                    <dt>PEI</dt>
+                    <dd x-text="product.pei"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.resistencia_manchas !== null">
+                    <dt>Resistencia a manchas</dt>
+                    <dd x-text="product.resistencia_manchas ? 'Sí' : 'No'"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.cantidad_caras">
+                    <dt>Caras diferenciadas</dt>
+                    <dd x-text="product.cantidad_caras"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.variacion_rate">
+                    <dt>Variation rate</dt>
+                    <dd x-text="product.variacion_rate"></dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </section>
+
+          <!-- Origen -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.pais_origen || product.calidad || product.coleccion">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Origen</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <dl class="spec-list spec-list--accordion">
+                  <div class="spec-row" x-show="product.pais_origen">
+                    <dt>País de origen</dt>
+                    <dd x-text="product.pais_origen"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.calidad">
+                    <dt>Calidad</dt>
+                    <dd x-text="product.calidad"></dd>
+                  </div>
+                  <div class="spec-row" x-show="product.coleccion">
+                    <dt>Colección</dt>
+                    <dd x-text="product.coleccion"></dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </section>
+
+          <!-- Ficha técnica -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.ficha_tecnica_url">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Ficha técnica</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <a :href="product.ficha_tecnica_url" class="ficha-link" download target="_blank" rel="noopener">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Descargar ficha técnica
+                </a>
+              </div>
+            </div>
+          </section>
+
+        </div><!-- /.accordions -->
+
       </div>
     </main>
     </template>

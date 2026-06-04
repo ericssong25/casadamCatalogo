@@ -71,18 +71,41 @@ document.addEventListener('alpine:init', () => {
             largo: parseFloat(p.largo) || 0,
             espesor: parseFloat(p.espesor) || 0,
             unidad_medida: p.unidad_medida || 'cm',
+            tipo_borde: p.tipo_borde || '',
+            formato_instalacion: p.formato_instalacion || '',
             color: p.color || '',
             acabado: p.acabado || '',
             material: p.material || '',
             uso: p.uso || 'Ambos',
             marca: p.marca || '',
+            tecnologia: p.tecnologia || '',
+            superficie: p.superficie || '',
+            grupo_absorcion: p.grupo_absorcion || '',
+            clasificacion_ansi: p.clasificacion_ansi || '',
+            coeficiente_friccion: p.coeficiente_friccion || '',
+            pei: p.pei || '',
+            cantidad_caras: p.cantidad_caras || '',
+            variacion_rate: p.variacion_rate || '',
             m2_por_caja: parseFloat(p.m2_por_caja) || 0,
             piezas_por_caja: p.piezas_por_caja || 0,
             peso: parseFloat(p.peso) || 0,
+            calidad: p.calidad || '',
+            coleccion: p.coleccion || '',
             precio_usd: parseFloat(p.precio_usd) || 0,
             mostrar_precio: p.mostrar_precio !== false,
             disponible: p.disponible !== false,
             destacado: p.destacado === true,
+            trafico: p.trafico || '',
+            terrazas: p.terrazas === true,
+            alto_trafico: p.alto_trafico === true,
+            garantia_anios: p.garantia_anios || '',
+            garantia_unidad: p.garantia_unidad || 'años',
+            garantia_condiciones: p.garantia_condiciones || '',
+            pais_origen: p.pais_origen || '',
+            resistencia_manchas: p.resistencia_manchas === true,
+            detalle_instalacion: p.detalle_instalacion || '',
+            observaciones: p.observaciones || '',
+            politica_imagen: p.politica_imagen || '',
             imagenes: (p.producto_imagenes || []).map(function (img) {
               return { url: img.url, es_principal: img.es_principal };
             })
@@ -290,6 +313,28 @@ document.addEventListener('alpine:init', () => {
       return [product.ancho, product.largo, product.espesor]
         .map(v => v % 1 === 0 ? v.toString() : v.toFixed(2))
         .join(' \u00D7 ') + ' ' + u;
+    },
+
+    formatMedidas(product) {
+      if (!product) return '';
+      const a = parseFloat(product.ancho) || 0;
+      const l = parseFloat(product.largo) || 0;
+      const e = parseFloat(product.espesor) || 0;
+      const u = product.unidad_medida || 'cm';
+      const fmt = v => v % 1 === 0 ? v.toString() : v.toFixed(2);
+      const parts = [fmt(a), fmt(l)];
+      if (e) parts.push(fmt(e));
+      return parts.join(' \u00D7 ') + ' ' + u;
+    },
+
+    sanitize(text) {
+      if (!text) return '';
+      return String(text)
+        .replace(/\uFFFD/g, function() {
+          return ' \u00D7 ';
+        })
+        .replace(/\s+/g, ' ')
+        .trim();
     },
 
     // === Badges de card (reutilizados en relacionados) ===

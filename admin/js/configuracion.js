@@ -56,7 +56,14 @@ document.addEventListener('alpine:init', function () {
 
       async saveTasas() {
         if (!this.config) return;
-        if (!confirm('¿Actualizar las tasas de cambio? Los precios del catálogo se recalcularán con las nuevas tasas.')) return;
+        var ok = await window.showConfirm({
+          title: '¿Actualizar las tasas de cambio?',
+          message: 'Los precios del catálogo se recalcularán con las nuevas tasas.',
+          confirmText: 'Actualizar',
+          cancelText: 'Cancelar',
+          variant: 'warning',
+        });
+        if (!ok) return;
         this.savingTasas = true;
         try {
           var r = await window.supabaseClient.from('configuracion').update({

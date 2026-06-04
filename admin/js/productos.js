@@ -2,11 +2,81 @@
  * Casa Dam Admin — CRUD de Productos
  */
 document.addEventListener('alpine:init', function () {
+
+  // ==========================================
+  // Reusable Alert / Confirm Dialog
+  // ==========================================
+  Alpine.data('alertDialog', function () {
+    return {
+      open: false,
+      title: '',
+      message: '',
+      confirmText: 'Aceptar',
+      cancelText: 'Cancelar',
+      variant: 'warning',
+      _resolve: null,
+
+      show: function (opts) {
+        opts = opts || {};
+        this.title = opts.title || '¿Estás seguro?';
+        this.message = opts.message || '';
+        this.confirmText = opts.confirmText || 'Confirmar';
+        this.cancelText = opts.cancelText || 'Cancelar';
+        this.variant = opts.variant || 'warning';
+        this.open = true;
+        this._resolve = null;
+        var self = this;
+        this.$nextTick(function () {
+          if (self.$refs.cancelBtn) {
+            self.$refs.cancelBtn.focus();
+          }
+        });
+        return new Promise(function (resolve) {
+          self._resolve = resolve;
+        });
+      },
+
+      confirm: function () {
+        this.open = false;
+        if (this._resolve) {
+          this._resolve(true);
+          this._resolve = null;
+        }
+      },
+
+      cancel: function () {
+        this.open = false;
+        if (this._resolve) {
+          this._resolve(false);
+          this._resolve = null;
+        }
+      },
+    };
+  });
+
+  // Global helper — call this from anywhere
+  window.showConfirm = function (opts) {
+    return new Promise(function (resolve) {
+      var el = document.querySelector('[x-data="alertDialog"]');
+      if (!el || !el._x_dataStack || !el._x_dataStack[0]) {
+        // Fallback if dialog not mounted
+        resolve(window.confirm(opts.message || opts.title));
+        return;
+      }
+      var dialog = el._x_dataStack[0];
+      dialog.show(opts).then(resolve);
+    });
+  };
+
+  // ==========================================
+  // Productos Module
+  // ==========================================
   Alpine.data('productosModule', function () {
     return {
       productos: [],
       categorias: [],
       subcategorias: [],
+      configuracion: null,
       loading: true,
       toasts: [],
 
@@ -32,7 +102,8 @@ document.addEventListener('alpine:init', function () {
         { label: 'Características', key: 'attrs' },
         { label: 'Empaque', key: 'pack' },
         { label: 'Precio y estado', key: 'price' },
-        { label: 'Imágenes', key: 'images' }
+        { label: 'Imágenes', key: 'images' },
+        { label: 'Técnicas', key: 'tech' }
       ],
       prodSaving: false,
       prodFormDirty: false,
@@ -48,7 +119,7 @@ document.addEventListener('alpine:init', function () {
 
       // === INIT ===
       async init() {
-        await Promise.all([this.loadProductos(), this.loadCategorias()]);
+        await Promise.all([this.loadProductos(), this.loadCategorias(), this.loadConfig()]);
       },
 
       // === LOAD ===
@@ -98,6 +169,13 @@ document.addEventListener('alpine:init', function () {
         }
       },
 
+      async loadConfig() {
+        try {
+          var r = await window.supabaseClient.from('configuracion').select('*').single();
+          if (!r.error && r.data) this.configuracion = r.data;
+        } catch (e) {}
+      },
+
       // === COMPUTED ===
       get filteredProductos() {
         var list = this.productos;
@@ -132,28 +210,72 @@ document.addEventListener('alpine:init', function () {
 
         if ((mode === 'edit' || mode === 'view') && prod) {
           this.prodForm = {
-            id: prod.id, codigo_interno: prod.codigo_interno, nombre: prod.nombre,
-            descripcion_larga: prod.descripcion_larga || '',
-            categoria_id: prod.categoria_id, subcategoria_id: prod.subcategoria_id || '',
-            ancho: prod.ancho || 0, largo: prod.largo || 0, espesor: prod.espesor || 0,
+            id: prod.id,
+            codigo_interno: sanitizeText(prod.codigo_interno),
+            nombre: sanitizeText(prod.nombre),
+            descripcion_larga: sanitizeText(prod.descripcion_larga || ''),
+            descripcion_larga_hadBadEncoding: hadBadEncoding(prod.descripcion_larga || ''),
+            categoria_id: prod.categoria_id || '',
+            subcategoria_id: prod.subcategoria_id || '',
+            ancho: prod.ancho != null && prod.ancho !== 0 ? prod.ancho : '',
+            largo: prod.largo != null && prod.largo !== 0 ? prod.largo : '',
+            espesor: prod.espesor != null && prod.espesor !== 0 ? prod.espesor : '',
             unidad_medida: prod.unidad_medida || 'cm',
-            color: prod.color || '', acabado: prod.acabado || '', material: prod.material || '',
-            uso: prod.uso || 'Ambos', marca: prod.marca || '',
-            m2_por_caja: prod.m2_por_caja || 0, piezas_por_caja: prod.piezas_por_caja || 0,
-            peso: prod.peso || 0, precio_usd: prod.precio_usd || 0,
+            tipo_borde: sanitizeText(prod.tipo_borde || ''),
+            formato_instalacion: sanitizeText(prod.formato_instalacion || ''),
+            color: sanitizeText(prod.color || ''),
+            acabado: sanitizeText(prod.acabado || ''),
+            material: sanitizeText(prod.material || ''),
+            uso: prod.uso || 'Ambos',
+            marca: sanitizeText(prod.marca || ''),
+            tecnologia: sanitizeText(prod.tecnologia || ''),
+            superficie: sanitizeText(prod.superficie || ''),
+            grupo_absorcion: sanitizeText(prod.grupo_absorcion || ''),
+            clasificacion_ansi: sanitizeText(prod.clasificacion_ansi || ''),
+            coeficiente_friccion: sanitizeText(prod.coeficiente_friccion || ''),
+            pei: prod.pei != null && prod.pei !== 0 ? prod.pei : '',
+            cantidad_caras: prod.cantidad_caras != null && prod.cantidad_caras !== 0 ? prod.cantidad_caras : '',
+            variacion_rate: prod.variacion_rate != null && prod.variacion_rate !== 0 ? prod.variacion_rate : '',
+            m2_por_caja: prod.m2_por_caja != null && prod.m2_por_caja !== 0 ? prod.m2_por_caja : '',
+            piezas_por_caja: prod.piezas_por_caja != null && prod.piezas_por_caja !== 0 ? prod.piezas_por_caja : '',
+            peso: prod.peso != null && prod.peso !== 0 ? prod.peso : '',
+            calidad: sanitizeText(prod.calidad || ''),
+            coleccion: sanitizeText(prod.coleccion || ''),
+            precio_usd: prod.precio_usd != null ? prod.precio_usd : '',
             mostrar_precio: prod.mostrar_precio !== false,
-            disponible: prod.disponible !== false, destacado: prod.destacado === true
+            disponible: prod.disponible !== false,
+            destacado: prod.destacado === true,
+            trafico: sanitizeText(prod.trafico || ''),
+            terrazas: prod.terrazas === true,
+            alto_trafico: prod.alto_trafico === true,
+            garantia_anios: prod.garantia_anios != null && prod.garantia_anios !== 0 ? prod.garantia_anios : '',
+            garantia_unidad: prod.garantia_unidad || 'años',
+            garantia_condiciones: sanitizeText(prod.garantia_condiciones || ''),
+            pais_origen: sanitizeText(prod.pais_origen || ''),
+            resistencia_manchas: prod.resistencia_manchas === true,
+            detalle_instalacion: sanitizeText(prod.detalle_instalacion || ''),
+            observaciones: sanitizeText(prod.observaciones || ''),
+            politica_imagen: sanitizeText(prod.politica_imagen || '')
           };
           this.prodImages = (prod.producto_imagenes || []).map(function (i) { return { id: i.id, url: i.url, es_principal: i.es_principal, saved: true, file: null, preview: i.url, toDelete: false }; });
         } else {
           this.prodForm = {
-            id: null, codigo_interno: '', nombre: '', descripcion_larga: '',
+            id: null, codigo_interno: '', nombre: '', descripcion_larga: '', descripcion_larga_hadBadEncoding: false,
             categoria_id: '', subcategoria_id: '',
-            ancho: 0, largo: 0, espesor: 0, unidad_medida: 'cm',
+            ancho: '', largo: '', espesor: '', unidad_medida: 'cm',
+            tipo_borde: '', formato_instalacion: '',
             color: '', acabado: '', material: '', uso: 'Ambos', marca: '',
-            m2_por_caja: 0, piezas_por_caja: 0, peso: 0,
-            precio_usd: 0, mostrar_precio: true,
-            disponible: true, destacado: false
+            tecnologia: '', superficie: '', grupo_absorcion: '',
+            clasificacion_ansi: '', coeficiente_friccion: '', pei: '',
+            cantidad_caras: '', variacion_rate: '',
+            m2_por_caja: '', piezas_por_caja: '', peso: '',
+            calidad: '', coleccion: '',
+            precio_usd: '', mostrar_precio: true,
+            disponible: true, destacado: false,
+            trafico: '', terrazas: false, alto_trafico: false,
+            garantia_anios: '', garantia_unidad: 'años', garantia_condiciones: '',
+            pais_origen: '', resistencia_manchas: false,
+            detalle_instalacion: '', observaciones: '', politica_imagen: ''
           };
           this.prodImages = [];
         }
@@ -186,17 +308,25 @@ document.addEventListener('alpine:init', function () {
         return Object.keys(set).sort();
       },
       colorToHex(color) {
-        if (!color) return '#cccccc';
+        if (!color) return null;
         var c = color.trim();
         if (/^#[0-9a-fA-F]{3,6}$/.test(c)) return c.length === 4 ? '#' + c[1]+c[1]+c[2]+c[2]+c[3]+c[3] : c;
         var map = {
-          'blanco': '#ffffff', 'beige': '#f5f5dc', 'gris': '#808080',
-          'negro': '#000000', 'marron': '#8b4513', 'marrón': '#8b4513',
-          'crema': '#fffdd0', 'multicolor': '#cccccc', 'natural': '#d2b48c',
+          'blanco': '#ffffff', 'beige': '#d4c5a9', 'gris': '#6b7280',
+          'negro': '#000000', 'marron': '#6f4e37', 'marrón': '#6f4e37',
+          'crema': '#fffdd0', 'multicolor': null, 'natural': '#c4b59a',
           'rojo': '#cc0000', 'azul': '#0000cc', 'verde': '#008000',
-          'amarillo': '#ffcc00', 'naranja': '#ff8800', 'rosa': '#ffc0cb'
+          'amarillo': '#ffcc00', 'naranja': '#ff8800', 'rosa': '#ffc0cb',
+          'miel': '#d4a574', 'cafe': '#6f4e37', 'café': '#6f4e37',
+          'ivory': '#f8f4e3', 'avellana': '#8b6f47', 'wengue': '#3d2817',
+          'almendra': '#efdfbb', 'terra': '#c87553', 'cenizo': '#8b8680',
+          'plomo': '#5a5a5a', 'camel': '#c19a6b', 'claro': '#e5e5e5',
+          'oscuro': '#2a2a2a', 'encina': '#a47551', 'tilo': '#d5c099',
+          'bruno': '#4a2c2a', 'perlado': '#f0e8d8', 'roca': '#7a7a7a',
+          'oslo': '#6e8087', 'alba': '#f5f5f0', 'sabino': '#8b4513',
+          'tilo': '#d5c099', 'perl': '#f0e8d8'
         };
-        return map[c.toLowerCase()] || '#cccccc';
+        return map[c.toLowerCase()] || null;
       },
 
       getCatNameById(id) {
@@ -215,10 +345,24 @@ document.addEventListener('alpine:init', function () {
         return s ? s.nombre : '—';
       },
 
-      closeProdModal() {
-        if (this.prodFormDirty && this.prodModalMode !== 'view' && !confirm('Hay cambios sin guardar. ¿Cerrar sin guardar?')) return;
+      async confirmCloseModal() {
+        if (this.prodFormDirty && this.prodModalMode !== 'view') {
+          var ok = await window.showConfirm({
+            title: '¿Cerrar sin guardar?',
+            message: 'Tienes cambios sin guardar. Si cierras, se perderán.',
+            confirmText: 'Descartar',
+            cancelText: 'Seguir editando',
+            variant: 'warning',
+          });
+          if (!ok) return;
+        }
+        this.forceCloseProdModal();
+      },
+
+      forceCloseProdModal() {
         this.prodModalOpen = false;
         this.prodImages = [];
+        this.prodFormDirty = false;
       },
 
       markDirty() { this.prodFormDirty = true; },
@@ -231,10 +375,19 @@ document.addEventListener('alpine:init', function () {
           if (!this.prodForm.categoria_id) this.prodErrors.categoria_id = 'La categoría es obligatoria';
         }
         if (step === 4) {
-          if (!parseFloat(this.prodForm.precio_usd) && parseFloat(this.prodForm.precio_usd) !== 0) {
+          if (this.prodForm.precio_usd === '' || this.prodForm.precio_usd == null) {
             this.prodErrors.precio_usd = 'El precio es obligatorio';
           }
         }
+        return Object.keys(this.prodErrors).length === 0;
+      },
+
+      validateForm() {
+        this.prodErrors = {};
+        if (!this.prodForm.codigo_interno.trim()) this.prodErrors.codigo_interno = 'El código interno es obligatorio';
+        if (!this.prodForm.nombre.trim()) this.prodErrors.nombre = 'El nombre es obligatorio';
+        if (!this.prodForm.categoria_id) this.prodErrors.categoria_id = 'La categoría es obligatoria';
+        if (this.prodForm.precio_usd === '' || this.prodForm.precio_usd == null) this.prodErrors.precio_usd = 'El precio es obligatorio';
         return Object.keys(this.prodErrors).length === 0;
       },
 
@@ -243,7 +396,7 @@ document.addEventListener('alpine:init', function () {
           this.showToast('Completa los campos obligatorios marcados en rojo', 'error');
           return;
         }
-        if (this.prodStep < 5) this.prodStep++;
+        if (this.prodStep < 6) this.prodStep++;
       },
 
       async onProdCategoriaChange() {
@@ -264,6 +417,20 @@ document.addEventListener('alpine:init', function () {
         return formatMeasuresStr(
           this.prodForm.ancho, this.prodForm.largo, this.prodForm.espesor, this.prodForm.unidad_medida
         );
+      },
+
+      get previewPrice() {
+        var usd = parseFloat(this.prodForm.precio_usd) || 0;
+        if (!usd) return '';
+        var conf = this.configuracion;
+        var cop = conf ? usd * (parseFloat(conf.tasa_cop_usd) || 4200) : 0;
+        var ves = conf ? usd * (parseFloat(conf.tasa_ves_usd) || 36.5) : 0;
+        if (cop) cop = '$ ' + Math.round(cop).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        if (ves) ves = 'Bs. ' + ves.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        var parts = [];
+        if (cop) parts.push(cop + ' COP');
+        if (ves) parts.push(ves);
+        return parts.join('  |  ');
       },
 
       // === IMAGES ===
@@ -324,9 +491,20 @@ document.addEventListener('alpine:init', function () {
 
       // === SAVE ===
       async saveProducto() {
-        if (!this.prodForm.codigo_interno.trim()) { this.showToast('El código interno es obligatorio', 'error'); return; }
-        if (!this.prodForm.nombre.trim()) { this.showToast('El nombre es obligatorio', 'error'); return; }
-        if (!this.prodForm.categoria_id) { this.showToast('La categoría es obligatoria', 'error'); return; }
+        if (!this.validateForm()) {
+          this.showToast('Hay campos por completar', 'error');
+          return;
+        }
+
+        // Check duplicate código interno
+        var existing = this.productos.find(function(p) {
+          return p.codigo_interno.trim() === this.prodForm.codigo_interno.trim() && p.id !== this.prodForm.id;
+        }.bind(this));
+        if (existing) {
+          this.prodErrors.codigo_interno = 'El código interno ya existe';
+          this.showToast('El código interno ya existe', 'error');
+          return;
+        }
 
         this.prodSaving = true;
         try {
@@ -340,18 +518,41 @@ document.addEventListener('alpine:init', function () {
             largo: parseFloat(this.prodForm.largo) || 0,
             espesor: parseFloat(this.prodForm.espesor) || 0,
             unidad_medida: this.prodForm.unidad_medida,
+            tipo_borde: this.prodForm.tipo_borde.trim() || null,
+            formato_instalacion: this.prodForm.formato_instalacion.trim() || null,
             color: this.prodForm.color.trim() || null,
             acabado: this.prodForm.acabado.trim() || null,
             material: this.prodForm.material.trim() || null,
             uso: this.prodForm.uso,
             marca: this.prodForm.marca.trim() || null,
+            tecnologia: this.prodForm.tecnologia.trim() || null,
+            superficie: this.prodForm.superficie.trim() || null,
+            grupo_absorcion: this.prodForm.grupo_absorcion.trim() || null,
+            clasificacion_ansi: this.prodForm.clasificacion_ansi.trim() || null,
+            coeficiente_friccion: this.prodForm.coeficiente_friccion.trim() || null,
+            pei: parseInt(this.prodForm.pei) || null,
+            cantidad_caras: parseInt(this.prodForm.cantidad_caras) || null,
+            variacion_rate: parseInt(this.prodForm.variacion_rate) || null,
             m2_por_caja: parseFloat(this.prodForm.m2_por_caja) || 0,
             piezas_por_caja: parseInt(this.prodForm.piezas_por_caja) || 0,
             peso: parseFloat(this.prodForm.peso) || 0,
+            calidad: this.prodForm.calidad.trim() || null,
+            coleccion: this.prodForm.coleccion.trim() || null,
             precio_usd: parseFloat(this.prodForm.precio_usd) || 0,
             mostrar_precio: this.prodForm.mostrar_precio,
             disponible: this.prodForm.disponible,
-            destacado: this.prodForm.destacado
+            destacado: this.prodForm.destacado,
+            trafico: this.prodForm.trafico.trim() || null,
+            terrazas: this.prodForm.terrazas,
+            alto_trafico: this.prodForm.alto_trafico,
+            garantia_anios: parseInt(this.prodForm.garantia_anios) || null,
+            garantia_unidad: this.prodForm.garantia_unidad,
+            garantia_condiciones: this.prodForm.garantia_condiciones.trim() || null,
+            pais_origen: this.prodForm.pais_origen.trim() || null,
+            resistencia_manchas: this.prodForm.resistencia_manchas,
+            detalle_instalacion: this.prodForm.detalle_instalacion.trim() || null,
+            observaciones: this.prodForm.observaciones.trim() || null,
+            politica_imagen: this.prodForm.politica_imagen.trim() || null
           };
 
           var result;
@@ -391,7 +592,14 @@ document.addEventListener('alpine:init', function () {
 
       // === DUPLICATE ===
       async duplicateProduct(prod) {
-        if (!confirm('¿Duplicar el producto "' + prod.nombre + '"?')) return;
+        var ok = await window.showConfirm({
+          title: '¿Duplicar el producto?',
+          message: '¿Duplicar "' + prod.nombre + '"? Se creará una copia con código -COPIA.',
+          confirmText: 'Duplicar',
+          cancelText: 'Cancelar',
+          variant: 'info',
+        });
+        if (!ok) return;
         try {
           var payload = {
             codigo_interno: prod.codigo_interno + '-COPIA',

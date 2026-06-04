@@ -136,3 +136,16 @@ function convertToWebP(file) {
     img.src = url;
   });
 }
+
+function sanitizeText(value) {
+  if (value == null) return '';
+  return String(value)
+    .replace(/(\d)\uFFFD(\d)/g, '$1 \u00D7 $2')
+    .replace(/\uFFFD/g, '')
+    .trim();
+}
+
+function hadBadEncoding(value) {
+  if (value == null) return false;
+  return String(value).includes('\uFFFD');
+}
