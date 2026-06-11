@@ -532,7 +532,7 @@ document.addEventListener('alpine:init', function () {
             coeficiente_friccion: this.prodForm.coeficiente_friccion.trim() || null,
             pei: parseInt(this.prodForm.pei) || null,
             cantidad_caras: parseInt(this.prodForm.cantidad_caras) || null,
-            variacion_rate: parseInt(this.prodForm.variacion_rate) || null,
+            variacion_rate: (this.prodForm.variacion_rate || '').toString().trim() || null,
             m2_por_caja: parseFloat(this.prodForm.m2_por_caja) || 0,
             piezas_por_caja: parseInt(this.prodForm.piezas_por_caja) || 0,
             peso: parseFloat(this.prodForm.peso) || 0,
