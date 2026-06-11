@@ -613,7 +613,7 @@
                   </div>
                   <div class="form-field-wrap">
                     <label class="form-label">Presentación</label>
-                    <div class="field-grid-3">
+                    <div class="field-grid-2">
                       <input type="number" x-model="prodForm.cantidad_caras" @input="markDirty()" class="form-input" min="1" placeholder="Ej: 4">
                       <div style="position:relative;">
                         <label class="form-label" style="font-size:11px;margin-bottom:4px;">Tasa de variación</label>
@@ -622,22 +622,6 @@
                         <span class="info-icon" style="position:absolute;right:8px;top:22px;">
                           <span style="font-size:9px;">?</span>
                           <span class="info-icon__tooltip">V1: uniforme, V2: variación leve, V3: variación moderada, V4: variación alta</span>
-                        </span>
-                      </div>
-                      <div style="position:relative;">
-                        <label class="form-label" style="font-size:11px;margin-bottom:4px;">PEI</label>
-                        <select x-model="prodForm.pei" @change="markDirty()" class="form-input">
-                          <option value="">Seleccionar...</option>
-                          <option value="1">I (PEI 1)</option>
-                          <option value="2">II (PEI 2)</option>
-                          <option value="3">III (PEI 3)</option>
-                          <option value="4">IV (PEI 4)</option>
-                          <option value="5">V (PEI 5)</option>
-                          <option value="">No aplica</option>
-                        </select>
-                        <span class="info-icon" style="position:absolute;right:8px;top:22px;">
-                          <span style="font-size:9px;">?</span>
-                          <span class="info-icon__tooltip">Resistencia a la abrasión. PEI I: solo decoración, PEI V: tránsito intenso</span>
                         </span>
                       </div>
                     </div>
@@ -898,7 +882,6 @@
                       <div class="view-field"><div class="view-field__label">Peso por caja</div><div class="view-field__value" x-text="(parseFloat(prodForm.peso)||0)+' kg'"></div></div>
                       <div class="view-field"><div class="view-field__label">Caras diferenciadas</div><div class="view-field__value" x-text="prodForm.cantidad_caras || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Variation rate</div><div class="view-field__value" x-text="prodForm.variacion_rate || '—'"></div></div>
-                      <div class="view-field"><div class="view-field__label">PEI</div><div class="view-field__value" x-text="prodForm.pei || '—'"></div></div>
                     </div>
                   </div>
                 </div>
@@ -922,6 +905,7 @@
                       <div class="view-field"><div class="view-field__label">Grupo absorción</div><div class="view-field__value" x-text="prodForm.grupo_absorcion || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Clasificación ANSI</div><div class="view-field__value" x-text="prodForm.clasificacion_ansi || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Coef. fricción</div><div class="view-field__value" x-text="prodForm.coeficiente_friccion || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">PEI</div><div class="view-field__value" x-text="prodForm.pei || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Resistencia a manchas</div><div class="view-field__value" :style="prodForm.resistencia_manchas?'color:#16a34a':'color:#dc2626'" x-text="prodForm.resistencia_manchas?'Sí':'No'"></div></div>
                       <div class="view-field"><div class="view-field__label">País de origen</div><div class="view-field__value" x-text="prodForm.pais_origen || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Calidad</div><div class="view-field__value" x-text="prodForm.calidad || '—'"></div></div>
