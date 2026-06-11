@@ -1866,17 +1866,16 @@ button:active,
 }
 
 .accordion-content-wrapper {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--transition-normal);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height var(--transition-normal);
 }
 
 .accordion-content-wrapper--open {
-  grid-template-rows: 1fr;
+  max-height: 1500px;
 }
 
 .accordion-content {
-  overflow: hidden;
   font-size: 0.875rem;
   line-height: 1.7;
   color: var(--color-text);

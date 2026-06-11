@@ -284,7 +284,63 @@
           <p class="product-description__body" x-text="sanitize(product.descripcion_larga)"></p>
         </section>
 
-        <!-- 2.7 Extended information accordions -->
+        <!-- 2.7 Datos técnicos -->
+        <section class="info-accordion" x-data="{ open: false }" x-show="product.superficie || product.grupo_absorcion || product.clasificacion_ansi || product.coeficiente_friccion || product.pei || product.resistencia_manchas !== null || product.tipo_borde || product.formato_instalacion || product.cantidad_caras || product.variacion_rate">
+          <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+            <span>Datos técnicos</span>
+            <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+            <div class="accordion-content">
+              <dl class="spec-list spec-list--accordion">
+                <div class="spec-row" x-show="product.tipo_borde">
+                  <dt>Tipo de borde</dt>
+                  <dd x-text="product.tipo_borde"></dd>
+                </div>
+                <div class="spec-row" x-show="product.formato_instalacion">
+                  <dt>Formato</dt>
+                  <dd x-text="product.formato_instalacion"></dd>
+                </div>
+                <div class="spec-row" x-show="product.superficie">
+                  <dt>Superficie</dt>
+                  <dd x-text="product.superficie"></dd>
+                </div>
+                <div class="spec-row" x-show="product.grupo_absorcion">
+                  <dt>Grupo absorción</dt>
+                  <dd x-text="product.grupo_absorcion"></dd>
+                </div>
+                <div class="spec-row" x-show="product.clasificacion_ansi">
+                  <dt>Clasificación ANSI</dt>
+                  <dd x-text="product.clasificacion_ansi"></dd>
+                </div>
+                <div class="spec-row" x-show="product.coeficiente_friccion">
+                  <dt>Coef. fricción</dt>
+                  <dd x-text="product.coeficiente_friccion"></dd>
+                </div>
+                <div class="spec-row" x-show="product.pei">
+                  <dt>PEI</dt>
+                  <dd x-text="product.pei"></dd>
+                </div>
+                <div class="spec-row" x-show="product.resistencia_manchas !== null">
+                  <dt>Resistencia a manchas</dt>
+                  <dd x-text="product.resistencia_manchas ? 'Sí' : 'No'"></dd>
+                </div>
+                <div class="spec-row" x-show="product.cantidad_caras">
+                  <dt>Caras diferenciadas</dt>
+                  <dd x-text="product.cantidad_caras"></dd>
+                </div>
+                <div class="spec-row" x-show="product.variacion_rate">
+                  <dt>Variation rate</dt>
+                  <dd x-text="product.variacion_rate"></dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2.8 Extended information accordions -->
         <div class="accordions">
 
           <!-- Instalación -->
@@ -342,62 +398,6 @@
             <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
               <div class="accordion-content">
                 <p x-text="sanitize(product.politica_imagen)"></p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Datos técnicos -->
-          <section class="info-accordion" x-data="{ open: false }" x-show="product.superficie || product.grupo_absorcion || product.clasificacion_ansi || product.coeficiente_friccion || product.pei || product.resistencia_manchas !== null || product.tipo_borde || product.formato_instalacion || product.cantidad_caras || product.variacion_rate">
-            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
-              <span>Datos técnicos</span>
-              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
-              <div class="accordion-content">
-                <dl class="spec-list spec-list--accordion">
-                  <div class="spec-row" x-show="product.tipo_borde">
-                    <dt>Tipo de borde</dt>
-                    <dd x-text="product.tipo_borde"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.formato_instalacion">
-                    <dt>Formato</dt>
-                    <dd x-text="product.formato_instalacion"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.superficie">
-                    <dt>Superficie</dt>
-                    <dd x-text="product.superficie"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.grupo_absorcion">
-                    <dt>Grupo absorción</dt>
-                    <dd x-text="product.grupo_absorcion"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.clasificacion_ansi">
-                    <dt>Clasificación ANSI</dt>
-                    <dd x-text="product.clasificacion_ansi"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.coeficiente_friccion">
-                    <dt>Coef. fricción</dt>
-                    <dd x-text="product.coeficiente_friccion"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.pei">
-                    <dt>PEI</dt>
-                    <dd x-text="product.pei"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.resistencia_manchas !== null">
-                    <dt>Resistencia a manchas</dt>
-                    <dd x-text="product.resistencia_manchas ? 'Sí' : 'No'"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.cantidad_caras">
-                    <dt>Caras diferenciadas</dt>
-                    <dd x-text="product.cantidad_caras"></dd>
-                  </div>
-                  <div class="spec-row" x-show="product.variacion_rate">
-                    <dt>Variation rate</dt>
-                    <dd x-text="product.variacion_rate"></dd>
-                  </div>
-                </dl>
               </div>
             </div>
           </section>
