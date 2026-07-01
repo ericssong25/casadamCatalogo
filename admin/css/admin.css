@@ -1039,6 +1039,33 @@ textarea:focus:not(:focus-visible) {
   color: var(--color-text-secondary);
   cursor: not-allowed;
 }
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.25rem;
+}
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent, #ed1b17);
+  cursor: pointer;
+}
+.form-helper {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
 
 textarea.form-input {
   height: auto;

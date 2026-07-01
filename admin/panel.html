@@ -525,6 +525,8 @@
                           <option value="">Seleccionar...</option>
                           <option>Mate</option><option>Pulido</option><option>Brillante</option>
                           <option>Estructurado</option><option>Rectificado</option><option>Satinado</option>
+                          <option>Marmolizado</option><option>Madera</option><option>Piedra</option>
+                          <option>Cemento</option><option>Liso</option><option>Otro</option>
                         </select>
                       </div>
                       <div>
@@ -537,27 +539,21 @@
                       </div>
                       <div>
                         <label class="form-label">Uso recomendado</label>
-                        <select x-model="prodForm.uso" @change="markDirty()" class="form-input">
-                          <option value="Ambos">Ambos</option>
-                          <option value="Piso">Piso</option>
-                          <option value="Pared">Pared</option>
-                          <option value="Exterior">Exterior</option>
-                        </select>
+                        <div class="checkbox-group">
+                          <label class="checkbox-row"><input type="checkbox" value="Piso" :checked="prodForm.uso.includes('Piso')" @change="toggleUso('Piso')"> Piso</label>
+                          <label class="checkbox-row"><input type="checkbox" value="Pared" :checked="prodForm.uso.includes('Pared')" @change="toggleUso('Pared')"> Pared</label>
+                          <label class="checkbox-row"><input type="checkbox" value="Exterior" :checked="prodForm.uso.includes('Exterior')" @change="toggleUso('Exterior')"> Exterior</label>
+                          <label class="checkbox-row"><input type="checkbox" value="Interior" :checked="prodForm.uso.includes('Interior')" @change="toggleUso('Interior')"> Interior</label>
+                        </div>
+                        <span class="form-helper">Selecciona uno o varios usos.</span>
                       </div>
                     </div>
                   </div>
                   <div class="form-field-wrap">
-                    <div class="field-grid-2">
-                      <div>
-                        <label class="form-label">Marca</label>
-                        <input type="text" x-model="prodForm.marca" @input="markDirty()" class="form-input" list="marcas-list" placeholder="Cerámica Italia...">
-                        <datalist id="marcas-list"><template x-for="v in uniqueMarcas"><option :value="v"></option></template></datalist>
-                      </div>
-                      <div>
-                        <label class="form-label">Tecnología</label>
-                        <input type="text" x-model="prodForm.tecnologia" @input="markDirty()" class="form-input" list="tecnologias-list" placeholder="Dtech, Gres Porcelánico...">
-                        <datalist id="tecnologias-list"><option>Dtech</option><option>Gres Porcelánico</option><option>Cerámica esmaltada</option><option>Porcelanato sinterizado</option></datalist>
-                      </div>
+                    <div>
+                      <label class="form-label">Marca</label>
+                      <input type="text" x-model="prodForm.marca" @input="markDirty()" class="form-input" list="marcas-list" placeholder="Cerámica Italia...">
+                      <datalist id="marcas-list"><template x-for="v in uniqueMarcas"><option :value="v"></option></template></datalist>
                     </div>
                   </div>
                   <div class="form-field-wrap">
@@ -575,12 +571,7 @@
                     </div>
                   </div>
                   <div class="form-field-wrap">
-                    <div class="field-grid-3">
-                      <div>
-                        <label class="form-label">Clasificación ANSI</label>
-                        <input type="text" x-model="prodForm.clasificacion_ansi" @input="markDirty()" class="form-input" list="ansi-list" placeholder="Interior Dry...">
-                        <datalist id="ansi-list"><option>Interior Dry</option><option>Interior Wet</option><option>Exterior</option></datalist>
-                      </div>
+                    <div class="field-grid-2">
                       <div>
                         <label class="form-label">Coef. fricción</label>
                         <input type="text" x-model="prodForm.coeficiente_friccion" @input="markDirty()" class="form-input" list="friccion-list" placeholder="Clase 1, R10...">
@@ -643,6 +634,15 @@
                           <option>Comercial</option>
                         </select>
                       </div>
+                    </div>
+                  </div>
+                  <div class="form-field-wrap">
+                    <div class="field-grid-2">
+                      <div>
+                        <label class="form-label">Atributos del producto</label>
+                        <input type="text" x-model="prodForm.atributos" @input="markDirty()" class="form-input" placeholder="Diamante, Premium, ...">
+                      </div>
+                      <div></div>
                     </div>
                   </div>
                 </div>
@@ -900,15 +900,14 @@
                   <div class="view-section">
                     <div class="view-section__title">Técnico</div>
                     <div class="view-grid view-grid--2">
-                      <div class="view-field"><div class="view-field__label">Tecnología</div><div class="view-field__value" x-text="prodForm.tecnologia || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Superficie</div><div class="view-field__value" x-text="prodForm.superficie || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Grupo absorción</div><div class="view-field__value" x-text="prodForm.grupo_absorcion || '—'"></div></div>
-                      <div class="view-field"><div class="view-field__label">Clasificación ANSI</div><div class="view-field__value" x-text="prodForm.clasificacion_ansi || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Coef. fricción</div><div class="view-field__value" x-text="prodForm.coeficiente_friccion || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">PEI</div><div class="view-field__value" x-text="prodForm.pei || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Resistencia a manchas</div><div class="view-field__value" :style="prodForm.resistencia_manchas?'color:#16a34a':'color:#dc2626'" x-text="prodForm.resistencia_manchas?'Sí':'No'"></div></div>
                       <div class="view-field"><div class="view-field__label">País de origen</div><div class="view-field__value" x-text="prodForm.pais_origen || '—'"></div></div>
                       <div class="view-field"><div class="view-field__label">Calidad</div><div class="view-field__value" x-text="prodForm.calidad || '—'"></div></div>
+                      <div class="view-field"><div class="view-field__label">Atributos del producto</div><div class="view-field__value" x-text="prodForm.atributos || '—'"></div></div>
                     </div>
                   </div>
                 </div>

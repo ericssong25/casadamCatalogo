@@ -133,12 +133,10 @@ document.addEventListener('alpine:init', () => {
             color: p.color || '',
             acabado: p.acabado || '',
             material: p.material || '',
-            uso: p.uso || 'Ambos',
+            uso: Array.isArray(p.uso) ? p.uso : (p.uso ? [p.uso] : []),
             marca: p.marca || '',
-            tecnologia: p.tecnologia || '',
             superficie: p.superficie || '',
             grupo_absorcion: p.grupo_absorcion || '',
-            clasificacion_ansi: p.clasificacion_ansi || '',
             coeficiente_friccion: p.coeficiente_friccion || '',
             pei: p.pei || '',
             cantidad_caras: p.cantidad_caras || '',
@@ -148,6 +146,7 @@ document.addEventListener('alpine:init', () => {
             peso: parseFloat(p.peso) || 0,
             calidad: p.calidad || '',
             coleccion: p.coleccion || '',
+            atributos: p.atributos || '',
             precio_usd: parseFloat(p.precio_usd) || 0,
             mostrar_precio: p.mostrar_precio !== false,
             disponible: p.disponible !== false,
@@ -247,7 +246,7 @@ document.addEventListener('alpine:init', () => {
       // Filtro uso
       if (this.filters.usos.length > 0) {
         result = result.filter(p =>
-          this.filters.usos.includes(p.uso)
+          Array.isArray(p.uso) && p.uso.some(u => this.filters.usos.includes(u))
         );
       }
 
@@ -533,7 +532,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     countByUso(u) {
-      return this.products.filter(p => p.uso === u).length;
+      return this.products.filter(p => Array.isArray(p.uso) && p.uso.includes(u)).length;
     },
 
     countByAcabado(a) {
@@ -603,7 +602,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     get usos() {
-      return ['Piso', 'Pared', 'Ambos', 'Exterior'];
+      return ['Piso', 'Pared', 'Exterior', 'Interior'];
     },
 
     get acabados() {

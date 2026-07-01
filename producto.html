@@ -250,9 +250,20 @@
               <dd x-text="sanitize(product.material)"></dd>
             </div>
 
-            <div class="spec-row" x-show="product.uso">
+            <div class="spec-row" x-show="product.uso && (Array.isArray(product.uso) ? product.uso.length : product.uso)">
               <dt>Uso recomendado</dt>
-              <dd x-text="product.uso"></dd>
+              <dd>
+                <template x-if="Array.isArray(product.uso)">
+                  <span class="uso-chips">
+                    <template x-for="u in product.uso" :key="u">
+                      <span class="uso-chip" x-text="u"></span>
+                    </template>
+                  </span>
+                </template>
+                <template x-if="!Array.isArray(product.uso) && product.uso">
+                  <span x-text="product.uso"></span>
+                </template>
+              </dd>
             </div>
 
             <div class="spec-row" x-show="product.marca">
@@ -285,7 +296,7 @@
         </section>
 
         <!-- 2.7 Datos técnicos -->
-        <section class="info-accordion" x-data="{ open: false }" x-show="product.superficie || product.grupo_absorcion || product.clasificacion_ansi || product.coeficiente_friccion || product.pei || product.resistencia_manchas !== null || product.tipo_borde || product.formato_instalacion || product.cantidad_caras || product.variacion_rate">
+        <section class="info-accordion" x-data="{ open: false }" x-show="product.superficie || product.grupo_absorcion || product.coeficiente_friccion || product.pei || product.resistencia_manchas !== null || product.tipo_borde || product.formato_instalacion || product.cantidad_caras || product.variacion_rate">
           <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
             <span>Datos técnicos</span>
             <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -310,10 +321,6 @@
                 <div class="spec-row" x-show="product.grupo_absorcion">
                   <dt>Grupo absorción</dt>
                   <dd x-text="product.grupo_absorcion"></dd>
-                </div>
-                <div class="spec-row" x-show="product.clasificacion_ansi">
-                  <dt>Clasificación ANSI</dt>
-                  <dd x-text="product.clasificacion_ansi"></dd>
                 </div>
                 <div class="spec-row" x-show="product.coeficiente_friccion">
                   <dt>Coef. fricción</dt>
@@ -383,6 +390,36 @@
                     <span x-show="product.garantia_condiciones" x-text="'. ' + product.garantia_condiciones" style="display:block;font-weight:400;font-size:13px;margin-top:4px;color:#6b7280;"></span>
                   </span>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Atributos del producto -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.atributos">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Atributos del producto</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <p x-text="product.atributos"></p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Información de Rotulado -->
+          <section class="info-accordion" x-data="{ open: false }" x-show="product.observaciones">
+            <button class="accordion-trigger" @click="open = !open" :aria-expanded="open.toString()">
+              <span>Información de rotulado</span>
+              <svg class="accordion-icon" :class="{'accordion-icon--open': open}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="accordion-content-wrapper" :class="{'accordion-content-wrapper--open': open}">
+              <div class="accordion-content">
+                <p x-text="sanitize(product.observaciones)"></p>
               </div>
             </div>
           </section>

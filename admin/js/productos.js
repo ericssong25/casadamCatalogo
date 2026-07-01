@@ -226,21 +226,20 @@ document.addEventListener('alpine:init', function () {
             color: sanitizeText(prod.color || ''),
             acabado: sanitizeText(prod.acabado || ''),
             material: sanitizeText(prod.material || ''),
-            uso: prod.uso || 'Ambos',
+            uso: this._normalizeUso(prod.uso),
             marca: sanitizeText(prod.marca || ''),
-            tecnologia: sanitizeText(prod.tecnologia || ''),
             superficie: sanitizeText(prod.superficie || ''),
             grupo_absorcion: sanitizeText(prod.grupo_absorcion || ''),
-            clasificacion_ansi: sanitizeText(prod.clasificacion_ansi || ''),
             coeficiente_friccion: sanitizeText(prod.coeficiente_friccion || ''),
             pei: prod.pei != null && prod.pei !== 0 ? prod.pei : '',
             cantidad_caras: prod.cantidad_caras != null && prod.cantidad_caras !== 0 ? prod.cantidad_caras : '',
-            variacion_rate: prod.variacion_rate != null && prod.variacion_rate !== 0 ? prod.variacion_rate : '',
+            variacion_rate: (prod.variacion_rate || '').toString().trim() || '',
             m2_por_caja: prod.m2_por_caja != null && prod.m2_por_caja !== 0 ? prod.m2_por_caja : '',
             piezas_por_caja: prod.piezas_por_caja != null && prod.piezas_por_caja !== 0 ? prod.piezas_por_caja : '',
             peso: prod.peso != null && prod.peso !== 0 ? prod.peso : '',
             calidad: sanitizeText(prod.calidad || ''),
             coleccion: sanitizeText(prod.coleccion || ''),
+            atributos: sanitizeText(prod.atributos || ''),
             precio_usd: prod.precio_usd != null ? prod.precio_usd : '',
             mostrar_precio: prod.mostrar_precio !== false,
             disponible: prod.disponible !== false,
@@ -264,12 +263,12 @@ document.addEventListener('alpine:init', function () {
             categoria_id: '', subcategoria_id: '',
             ancho: '', largo: '', espesor: '', unidad_medida: 'cm',
             tipo_borde: '', formato_instalacion: '',
-            color: '', acabado: '', material: '', uso: 'Ambos', marca: '',
-            tecnologia: '', superficie: '', grupo_absorcion: '',
-            clasificacion_ansi: '', coeficiente_friccion: '', pei: '',
+            color: '', acabado: '', material: '', uso: ['Piso','Pared'], marca: '',
+            superficie: '', grupo_absorcion: '',
+            coeficiente_friccion: '', pei: '',
             cantidad_caras: '', variacion_rate: '',
             m2_por_caja: '', piezas_por_caja: '', peso: '',
-            calidad: '', coleccion: '',
+            calidad: '', coleccion: '', atributos: '',
             precio_usd: '', mostrar_precio: true,
             disponible: true, destacado: false,
             trafico: '', terrazas: false, alto_trafico: false,
@@ -366,6 +365,23 @@ document.addEventListener('alpine:init', function () {
       },
 
       markDirty() { this.prodFormDirty = true; },
+
+      _normalizeUso(value) {
+        if (Array.isArray(value)) return value.filter(Boolean);
+        if (value == null || value === '') return [];
+        if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
+          return value.slice(1, -1).split(',').map(function (s) { return s.replace(/^"|"$/g, '').trim(); }).filter(Boolean);
+        }
+        return [value];
+      },
+
+      toggleUso(value) {
+        if (!Array.isArray(this.prodForm.uso)) this.prodForm.uso = [];
+        var i = this.prodForm.uso.indexOf(value);
+        if (i >= 0) this.prodForm.uso.splice(i, 1);
+        else this.prodForm.uso.push(value);
+        this.markDirty();
+      },
 
       validateStep(step) {
         this.prodErrors = {};
@@ -523,12 +539,10 @@ document.addEventListener('alpine:init', function () {
             color: this.prodForm.color.trim() || null,
             acabado: this.prodForm.acabado.trim() || null,
             material: this.prodForm.material.trim() || null,
-            uso: this.prodForm.uso,
+            uso: Array.isArray(this.prodForm.uso) ? this.prodForm.uso.filter(Boolean) : (this.prodForm.uso ? [this.prodForm.uso] : []),
             marca: this.prodForm.marca.trim() || null,
-            tecnologia: this.prodForm.tecnologia.trim() || null,
             superficie: this.prodForm.superficie.trim() || null,
             grupo_absorcion: this.prodForm.grupo_absorcion.trim() || null,
-            clasificacion_ansi: this.prodForm.clasificacion_ansi.trim() || null,
             coeficiente_friccion: this.prodForm.coeficiente_friccion.trim() || null,
             pei: parseInt(this.prodForm.pei) || null,
             cantidad_caras: parseInt(this.prodForm.cantidad_caras) || null,
@@ -538,6 +552,7 @@ document.addEventListener('alpine:init', function () {
             peso: parseFloat(this.prodForm.peso) || 0,
             calidad: this.prodForm.calidad.trim() || null,
             coleccion: this.prodForm.coleccion.trim() || null,
+            atributos: (this.prodForm.atributos || '').trim() || null,
             precio_usd: parseFloat(this.prodForm.precio_usd) || 0,
             mostrar_precio: this.prodForm.mostrar_precio,
             disponible: this.prodForm.disponible,
