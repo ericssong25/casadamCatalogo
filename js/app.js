@@ -3,6 +3,23 @@
  * Lógica del catálogo con Alpine.js v3
  */
 
+// Orden estable para imágenes: por `orden` ASC, con tiebreak
+// por `created_at` ASC y luego por `id` ASC. Defensivo: se aplica
+// siempre del lado cliente aunque la consulta ya traiga ORDER BY.
+function sortImagesByOrdenPublic(imgs) {
+  return (imgs || [])
+    .slice()
+    .sort(function (a, b) {
+      var oa = a.orden, ob = b.orden;
+      oa = (oa == null || isNaN(oa)) ? Number.MAX_SAFE_INTEGER : Number(oa);
+      ob = (ob == null || isNaN(ob)) ? Number.MAX_SAFE_INTEGER : Number(ob);
+      if (oa !== ob) return oa - ob;
+      var ca = a.created_at || '', cb = b.created_at || '';
+      if (ca !== cb) return ca < cb ? -1 : ca > cb ? 1 : 0;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+}
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('catalog', () => ({
     // === Estado principal ===
@@ -50,6 +67,7 @@ document.addEventListener('alpine:init', () => {
     currentPage: 1,
     perPage: 24,
     currency: 'USD',
+    ocultarPrecios: false,
     mobileFiltersOpen: false,
     _scrollY: 0,
     _gridHeight: 0,
@@ -57,9 +75,11 @@ document.addEventListener('alpine:init', () => {
     // === Inicialización ===
     async init() {
       this._loadCurrencyPref();
+      this._ajustarSortSiPreciosOcultos();
       var cached = this._loadFromCache();
       if (cached) {
         this.products = cached.products;
+        if (typeof cached.ocultarPrecios === 'boolean') this.ocultarPrecios = cached.ocultarPrecios;
         this.loadingData = false;
         this._calcPriceRange();
         this._readURLParams();
@@ -70,18 +90,25 @@ document.addEventListener('alpine:init', () => {
         this._readURLParams();
         this.loadingData = false;
       }
+      this._ajustarSortSiPreciosOcultos();
+    },
+
+    _ajustarSortSiPreciosOcultos() {
+      if (this.ocultarPrecios && (this.sortBy === 'precio-asc' || this.sortBy === 'precio-desc')) {
+        this.sortBy = 'relevancia';
+      }
     },
 
     _saveToCache() {
       try {
-        var data = { products: this.products, ts: Date.now() };
-        sessionStorage.setItem('cdam_products', JSON.stringify(data));
+        var data = { products: this.products, ocultarPrecios: this.ocultarPrecios, ts: Date.now() };
+        sessionStorage.setItem('cdam_products_v2', JSON.stringify(data));
       } catch (e) {}
     },
 
     _loadFromCache() {
       try {
-        var raw = sessionStorage.getItem('cdam_products');
+        var raw = sessionStorage.getItem('cdam_products_v2');
         if (!raw) return null;
         var data = JSON.parse(raw);
         if (Date.now() - data.ts > 5 * 60 * 1000) return null; // 5 min TTL
@@ -94,12 +121,17 @@ document.addEventListener('alpine:init', () => {
         var supabase = window.supabaseClient;
         if (!supabase) throw new Error('Supabase not available');
 
-        var prodQ = supabase.from('productos').select('*, producto_imagenes(url, es_principal, orden)').order('nombre');
+        var prodQ = supabase.from('productos')
+          .select('*, producto_imagenes(url, es_principal, orden)')
+          .order('nombre')
+          .order('orden', { referencedTable: 'producto_imagenes', ascending: true })
+          .order('created_at', { referencedTable: 'producto_imagenes', ascending: true })
+          .order('id', { referencedTable: 'producto_imagenes', ascending: true });
         var catQ = supabase.from('categorias').select('id, nombre').eq('activa', true);
         var confQ = supabase.from('configuracion').select('*').single();
 
         try {
-          var cachedRates = sessionStorage.getItem('cdam_rates');
+          var cachedRates = sessionStorage.getItem('cdam_config_v2');
           if (cachedRates) {
             var r = JSON.parse(cachedRates);
             if (Date.now() - r.ts < 5 * 60 * 1000) {
@@ -162,9 +194,14 @@ document.addEventListener('alpine:init', () => {
             detalle_instalacion: p.detalle_instalacion || '',
             observaciones: p.observaciones || '',
             politica_imagen: p.politica_imagen || '',
-            imagenes: (p.producto_imagenes || []).map(function (img) {
-              return { url: img.url, es_principal: img.es_principal };
-            })
+            imagenes: sortImagesByOrdenPublic(p.producto_imagenes || [])
+              .map(function (img, idx) {
+                return {
+                  url: img.url,
+                  es_principal: idx === 0,
+                  orden: img.orden || (idx + 1)
+                };
+              })
           };
         });
 
@@ -174,8 +211,9 @@ document.addEventListener('alpine:init', () => {
             cop: parseFloat(confRes.data.tasa_cop_usd) || 4200,
             ves: parseFloat(confRes.data.tasa_ves_usd) || 36.50
           };
+          this.ocultarPrecios = confRes.data.ocultar_precios === true;
           try {
-            sessionStorage.setItem('cdam_rates', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
+            sessionStorage.setItem('cdam_config_v2', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
           } catch (e) {}
         }
 
@@ -203,6 +241,30 @@ document.addEventListener('alpine:init', () => {
         this.advancedPending.precioMin = min;
         this.advancedPending.precioMax = max;
       }
+    },
+
+    get mostrarPrecios() {
+      return this.ocultarPrecios !== true;
+    },
+
+    mostrarPrecioProducto(p) {
+      if (this.ocultarPrecios) return false;
+      return p.mostrar_precio !== false;
+    },
+
+    get opcionesDeOrden() {
+      var opts = [
+        { value: 'relevancia', label: 'Relevancia' },
+        { value: 'alfabetico', label: 'Alfabético A-Z' },
+        { value: 'recientes', label: 'Más recientes' }
+      ];
+      if (!this.ocultarPrecios) {
+        opts.splice(1, 0,
+          { value: 'precio-asc', label: 'Precio: menor a mayor' },
+          { value: 'precio-desc', label: 'Precio: mayor a menor' }
+        );
+      }
+      return opts;
     },
 
     _loadCurrencyPref() {
@@ -269,12 +331,14 @@ document.addEventListener('alpine:init', () => {
         result = result.filter(p => p.disponible);
       }
 
-      // Filtro rango de precio
-      result = result.filter(p => {
-        if (!p.mostrar_precio) return true;
-        return p.precio_usd >= this.advanced.precioMin &&
-               p.precio_usd <= this.advanced.precioMax;
-      });
+      // Filtro rango de precio (omitido si ocultarPrecios está activo)
+      if (!this.ocultarPrecios) {
+        result = result.filter(p => {
+          if (!p.mostrar_precio) return true;
+          return p.precio_usd >= this.advanced.precioMin &&
+                 p.precio_usd <= this.advanced.precioMax;
+        });
+      }
 
       // Filtro medidas
       if (this.advanced.anchoMin != null && this.advanced.anchoMin !== '') {
@@ -625,6 +689,7 @@ document.addEventListener('alpine:init', () => {
 
     formatPrice(priceUsd, mostrarPrecio) {
       if (!mostrarPrecio) return null;
+      if (this.ocultarPrecios) return null;
 
       const tasas = window.TASAS_CAMBIO || { usd: 1, cop: 4200, ves: 36.50 };
       let converted;

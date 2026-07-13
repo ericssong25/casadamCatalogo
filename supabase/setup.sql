@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS configuracion (
   direccion                TEXT,
   logo_url                 TEXT,
   moneda_default           TEXT NOT NULL DEFAULT 'USD',
+  ocultar_precios          BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (id = '00000000-0000-0000-0000-000000000001')
 );

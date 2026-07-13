@@ -5,3 +5,10 @@ node_modules/
 .DS_Store
 *.log
 config.js
+backups/
+wipe-inventory.js
+wipe-storage.js
+backup-inventory.js
+descarga-inventario-2026.js
+carga-inventario-2026.js
+scraper-inventario-2026.js

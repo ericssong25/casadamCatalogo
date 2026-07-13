@@ -126,13 +126,17 @@ document.addEventListener('alpine:init', function () {
       async loadProductos() {
         this.loading = true;
         try {
-          var r = await window.supabaseClient.from('productos').select('*, producto_imagenes(*)').order('created_at', { ascending: false });
+          var r = await window.supabaseClient.from('productos')
+            .select('*, producto_imagenes(*)')
+            .order('created_at', { ascending: false })
+            .order('orden', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('created_at', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('id', { referencedTable: 'producto_imagenes', ascending: true });
           if (r.error) throw r.error;
           this.productos = (r.data || []).map(function (p) {
-            p.imagen_principal = (p.producto_imagenes || []).find(function (i) { return i.es_principal; });
-            if (!p.imagen_principal && p.producto_imagenes && p.producto_imagenes.length) {
-              p.imagen_principal = p.producto_imagenes[0];
-            }
+            var imgs = sortImagesByOrden(p.producto_imagenes || []);
+            p.producto_imagenes = imgs;
+            p.imagen_principal = imgs.length ? imgs[0] : null;
             return p;
           });
         } catch (e) {
@@ -256,7 +260,18 @@ document.addEventListener('alpine:init', function () {
             observaciones: sanitizeText(prod.observaciones || ''),
             politica_imagen: sanitizeText(prod.politica_imagen || '')
           };
-          this.prodImages = (prod.producto_imagenes || []).map(function (i) { return { id: i.id, url: i.url, es_principal: i.es_principal, saved: true, file: null, preview: i.url, toDelete: false }; });
+          var orderedImages = window.sortImagesByOrden(prod.producto_imagenes || []);
+          this.prodImages = orderedImages.map(function (i, idx) {
+            return {
+              id: i.id,
+              url: i.url,
+              es_principal: idx === 0,
+              saved: true,
+              file: null,
+              preview: i.url,
+              toDelete: false
+            };
+          });
         } else {
           this.prodForm = {
             id: null, codigo_interno: '', nombre: '', descripcion_larga: '', descripcion_larga_hadBadEncoding: false,
@@ -454,6 +469,31 @@ document.addEventListener('alpine:init', function () {
         return this.prodImages.filter(function (img) { return !img.toDelete; });
       },
 
+      visibleImages() {
+        var out = [];
+        for (var i = 0; i < this.prodImages.length; i++) {
+          if (!this.prodImages[i].toDelete) out.push(this.prodImages[i]);
+        }
+        return out;
+      },
+
+      _visibleRawIndex(rawIndex) {
+        var vis = 0;
+        for (var i = 0; i <= rawIndex; i++) {
+          if (!this.prodImages[i].toDelete) vis++;
+        }
+        return vis - 1;
+      },
+
+      puedeSubir(rawIndex) {
+        return this._visibleRawIndex(rawIndex) > 0;
+      },
+
+      puedeBajar(rawIndex) {
+        var total = this.visibleImages().length;
+        return this._visibleRawIndex(rawIndex) < total - 1;
+      },
+
       onImageFiles(e) {
         var self = this;
         var files = Array.from(e.target.files);
@@ -491,18 +531,38 @@ document.addEventListener('alpine:init', function () {
       setPrincipalImage(index) {
         var img = this.prodImages[index];
         if (!img || img.toDelete) return;
+        if (index === 0) return;
+        this.prodImages.splice(index, 1);
+        this.prodImages.unshift(img);
         this.prodImages.forEach(function (i) { i.es_principal = false; });
-        img.es_principal = true;
+        this.prodImages[0].es_principal = true;
         this.markDirty();
       },
 
       moveImage(index, direction) {
-        var newIdx = index + direction;
-        if (newIdx < 0 || newIdx >= this.prodImages.length) return;
-        var tmp = this.prodImages[index];
-        this.prodImages[index] = this.prodImages[newIdx];
-        this.prodImages[newIdx] = tmp;
-        this.markDirty();
+        var visIdx = 0;
+        for (var i = 0; i < this.prodImages.length; i++) {
+          if (this.prodImages[i].toDelete) continue;
+          if (visIdx === index) {
+            var targetVisIdx = visIdx + direction;
+            if (targetVisIdx < 0) return;
+            var tVis = 0;
+            for (var j = 0; j < this.prodImages.length; j++) {
+              if (this.prodImages[j].toDelete) continue;
+              if (tVis === targetVisIdx) {
+                if (j < 0 || j >= this.prodImages.length) return;
+                var tmp = this.prodImages[i];
+                this.prodImages[i] = this.prodImages[j];
+                this.prodImages[j] = tmp;
+                this.markDirty();
+                return;
+              }
+              tVis++;
+            }
+            return;
+          }
+          visIdx++;
+        }
       },
 
       // === SAVE ===

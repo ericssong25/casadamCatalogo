@@ -56,6 +56,7 @@
         id="currency-select"
         class="search-bar__currency"
         x-model="currency"
+        x-show="mostrarPrecios"
         aria-label="Moneda"
       >
         <option value="USD">USD</option>
@@ -286,8 +287,8 @@
           </div>
         </div>
 
-        <!-- Precio (cerrado) -->
-        <div class="filter-group">
+        <!-- Precio (cerrado, oculto si ocultarPrecios) -->
+        <div class="filter-group" x-show="mostrarPrecios">
           <button class="filter-group__header" @click="toggleAccordion('precio')" aria-label="Precio">
             <span class="filter-group__header-text">Precio (USD)</span>
             <span x-show="!accordion.precio && hasActivePrecio()" class="filter-group__badge">(1)</span>
@@ -419,11 +420,9 @@
             @change="onSortChange()"
             aria-label="Ordenar productos"
           >
-            <option value="relevancia">Relevancia</option>
-            <option value="precio-asc">Precio: menor a mayor</option>
-            <option value="precio-desc">Precio: mayor a menor</option>
-            <option value="alfabetico">Alfabético A-Z</option>
-            <option value="recientes">Más recientes</option>
+            <template x-for="opt in opcionesDeOrden" :key="opt.value">
+              <option :value="opt.value" x-text="opt.label"></option>
+            </template>
           </select>
         </div>
       </div>
@@ -475,10 +474,10 @@
               <div class="product-card__name" x-text="product.nombre"></div>
               <div class="product-card__code" x-text="'Cód. ' + product.codigo_interno"></div>
               <div class="product-card__measures" x-text="formatMeasures(product)"></div>
-              <template x-if="product.mostrar_precio">
+              <template x-if="mostrarPrecioProducto(product)">
                 <div class="product-card__price" x-text="formatPrice(product.precio_usd, product.mostrar_precio)"></div>
               </template>
-              <template x-if="!product.mostrar_precio">
+              <template x-if="!mostrarPrecioProducto(product)">
                 <div class="product-card__price--consult">Consultar precio</div>
               </template>
             </div>

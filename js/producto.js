@@ -3,6 +3,23 @@
  * Componente Alpine.js para la vista de detalle
  */
 
+// Orden estable para imágenes: por `orden` ASC, con tiebreak
+// por `created_at` ASC y luego por `id` ASC. Defensivo: se aplica
+// siempre del lado cliente aunque la consulta ya traiga ORDER BY.
+function sortImagesByOrdenPublic(imgs) {
+  return (imgs || [])
+    .slice()
+    .sort(function (a, b) {
+      var oa = a.orden, ob = b.orden;
+      oa = (oa == null || isNaN(oa)) ? Number.MAX_SAFE_INTEGER : Number(oa);
+      ob = (ob == null || isNaN(ob)) ? Number.MAX_SAFE_INTEGER : Number(ob);
+      if (oa !== ob) return oa - ob;
+      var ca = a.created_at || '', cb = b.created_at || '';
+      if (ca !== cb) return ca < cb ? -1 : ca > cb ? 1 : 0;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+}
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('productDetail', () => ({
     // === Estado ===
@@ -10,6 +27,7 @@ document.addEventListener('alpine:init', () => {
     loading: true,
     notFound: false,
     moneda: 'USD',
+    ocultarPrecios: false,
     allProducts: [],
     selectedImageIndex: 0,
     relatedProducts: [],
@@ -47,8 +65,17 @@ document.addEventListener('alpine:init', () => {
         if (!supabase) throw new Error('Supabase not available');
 
         var _a = await Promise.all([
-          supabase.from('productos').select('*, producto_imagenes(*)').eq('id', id).single(),
-          supabase.from('productos').select('*, producto_imagenes(*)').order('nombre'),
+          supabase.from('productos').select('*, producto_imagenes(*)')
+            .eq('id', id)
+            .order('orden', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('created_at', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('id', { referencedTable: 'producto_imagenes', ascending: true })
+            .single(),
+          supabase.from('productos').select('*, producto_imagenes(*)')
+            .order('nombre')
+            .order('orden', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('created_at', { referencedTable: 'producto_imagenes', ascending: true })
+            .order('id', { referencedTable: 'producto_imagenes', ascending: true }),
           supabase.from('categorias').select('id, nombre').eq('activa', true),
           supabase.from('configuracion').select('*').single()
         ]);
@@ -105,9 +132,14 @@ document.addEventListener('alpine:init', () => {
             detalle_instalacion: p.detalle_instalacion || '',
             observaciones: p.observaciones || '',
             politica_imagen: p.politica_imagen || '',
-            imagenes: (p.producto_imagenes || []).map(function (img) {
-              return { url: img.url, es_principal: img.es_principal };
-            })
+            imagenes: sortImagesByOrdenPublic(p.producto_imagenes || [])
+              .map(function (img, idx) {
+                return {
+                  url: img.url,
+                  es_principal: idx === 0,
+                  orden: img.orden || (idx + 1)
+                };
+              })
           };
         }
 
@@ -125,8 +157,9 @@ document.addEventListener('alpine:init', () => {
             cop: parseFloat(confRes.data.tasa_cop_usd) || 4200,
             ves: parseFloat(confRes.data.tasa_ves_usd) || 36.50
           };
+          this.ocultarPrecios = confRes.data.ocultar_precios === true;
           try {
-            sessionStorage.setItem('cdam_rates', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
+            sessionStorage.setItem('cdam_config_v2', JSON.stringify({ rates: window.TASAS_CAMBIO, ts: Date.now() }));
           } catch (e) {}
         }
       } catch (e) {
@@ -266,6 +299,7 @@ document.addEventListener('alpine:init', () => {
 
     formatPrice(usd, mostrar) {
       if (!mostrar) return null;
+      if (this.ocultarPrecios) return null;
       const tasas = window.TASAS_CAMBIO || { usd: 1, cop: 4200, ves: 36.50 };
       let converted;
       switch (this.moneda) {
@@ -278,6 +312,16 @@ document.addEventListener('alpine:init', () => {
         default:
           return '$ ' + usd.toFixed(2);
       }
+    },
+
+    get mostrarPrecios() {
+      return this.ocultarPrecios !== true;
+    },
+
+    mostrarPrecioProducto(p) {
+      if (!p) return false;
+      if (this.ocultarPrecios) return false;
+      return p.mostrar_precio !== false;
     },
 
     formatAltPrice(usd, mon) {

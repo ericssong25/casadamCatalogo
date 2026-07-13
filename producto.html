@@ -79,6 +79,7 @@
         class="search-bar__currency"
         x-model="moneda"
         @change="setCurrency(moneda)"
+        x-show="mostrarPrecios"
         aria-label="Moneda"
       >
         <option value="USD">USD</option>
@@ -200,7 +201,7 @@
 
         <!-- 2.3 Price block -->
         <div class="product-price">
-          <template x-if="product.mostrar_precio">
+          <template x-if="mostrarPrecioProducto(product)">
             <div>
               <div class="product-price__main" x-text="formatPrice(product.precio_usd, true)"></div>
               <div class="product-price__alts">
@@ -210,7 +211,7 @@
               </div>
             </div>
           </template>
-          <template x-if="!product.mostrar_precio">
+          <template x-if="!mostrarPrecioProducto(product)">
             <div class="product-price__consult">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -516,10 +517,10 @@
               <div class="product-card__name" x-text="rp.nombre"></div>
               <div class="product-card__code" x-text="'Cód. ' + rp.codigo_interno"></div>
               <div class="product-card__measures" x-text="formatMeasures(rp)"></div>
-              <template x-if="rp.mostrar_precio">
+              <template x-if="mostrarPrecioProducto(rp)">
                 <div class="product-card__price" x-text="formatPrice(rp.precio_usd, true)"></div>
               </template>
-              <template x-if="!rp.mostrar_precio">
+              <template x-if="!mostrarPrecioProducto(rp)">
                 <div class="product-card__price--consult">Consultar precio</div>
               </template>
             </div>

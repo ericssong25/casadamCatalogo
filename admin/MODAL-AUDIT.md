@@ -113,14 +113,14 @@ function hadBadEncoding(value) {
   - "Destacado" → *"Los destacados aparecen primero y con un sello rojo"*
 
 ### Tab 6 — Imágenes
-- **SortableJS 1.15.2** added via CDN (`cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js`)
-- **Drag-and-drop reorder:** arrow buttons removed. Images use native HTML5 drag via SortableJS with `animation: 150` and `ghostClass: image-grid__item--dragging`. The SortableJS `onEnd` callback splices the array to the new position.
-- **Star icon:** outline star (opacity 0.5) when not principal; filled star in `#fbbf24` accent yellow when principal
-- **Principal badge:** red `#ed1b23` background, white text, 9px font, uppercase, positioned bottom-left
-- **X delete button:** 24×24px, circular white background, gray icon → red background white icon on hover
-- **Add slot:** dashed border, `+` icon centered, hover → accent red border + light red background
-- **Drag-over state:** entire zone highlights with `rgba(237,27,35,0.04)` background + "Suelta las imágenes aquí" overlay message
-- **Max 10 images:** if reached, `+` slot hides and a note "Máximo 10 imágenes por producto." appears below the grid
+- **Reorder explícito (no drag & drop):** cada imagen es un item de lista vertical con posición numérica (`#1`, `#2`, ...), botones `↑` / `↓` (deshabilitados en los extremos), botón `×` para eliminar, y estrella para marcar como principal. La estrella es independiente de la posición.
+- **Star icon:** outline star (opacity 0.3) cuando no es principal; filled star en `#fbbf24` amarillo cuando es principal
+- **Principal badge:** fondo `#ed1b23`, texto blanco, 9px font, uppercase — visible inline en la tarjeta de la imagen
+- **X delete button:** botón inline en el bloque de controles, fondo blanco / borde gris → fondo rojo + texto blanco en hover
+- **Add slot (`+`):** por debajo de la lista, dashed border, ícono `+` centrado, hover → accent red border + light red background
+- **Drag-over state:** toda la zona `.image-upload-zone` resalta con `rgba(237,27,35,0.04)` y overlay "Suelta las imágenes aquí"
+- **Max 10 imágenes:** si se alcanza, el `+` se oculta y aparece la nota "Máximo 10 imágenes por producto."
+- **SortableJS eliminado:** el `<script>` de `sortablejs@1.15.2` ya no se carga. La fuente de verdad es exclusivamente el array `prodImages` (Alpine `x-for`). Reordenar siempre dispara `markDirty()` y se persiste en `guardar`.
 
 ### Tab 7 — Técnicas
 Reorganized into **3 clearly labeled subsections** with uppercase 11px gray section headers and 1px `#e5e7eb` top borders (except first):
@@ -211,8 +211,8 @@ Reorganized into **3 clearly labeled subsections** with uppercase 11px gray sect
 | `.char-counter` | 12px right-aligned count |
 | `.encoding-warning` | Yellow bad-encoding banner |
 | `.price-conversion` | Live USD→COP/VES preview |
-| `.image-grid-sortable` | SortableJS drag target |
-| `.image-grid__item--dragging` | Ghost during drag |
+| `.image-grid-sortable` | (deprecated) SortableJS drag target — unused tras la migración a botones ↑/↓ |
+| `.image-grid__item--dragging` | Ghost during drag — unused |
 | `.image-grid__star` | Principal star (outline/filled) |
 | `.image-grid__remove` | 24px circular X button |
 | `.image-grid__add` | Dashed `+` slot |
@@ -229,7 +229,7 @@ Reorganized into **3 clearly labeled subsections** with uppercase 11px gray sect
 
 ## Notes
 
-- **SortableJS CDN:** The image reorder uses SortableJS initialized via `$nextTick` inside `x-init` on the `.image-grid-sortable` div. Alpine's reactivity updates the `prodImages` array directly via SortableJS's `onEnd` callback.
+- **Reorder explícito:** el reorden de imágenes se hace con botones `↑` / `↓` por item. El array `prodImages` es la única fuente de verdad; cada swap invoca `moveImage(i, ±1)` y dispara `markDirty()`; el guardado persiste `orden` y `es_principal` desde el array en `upload.js → updateProductImages`.
 - **No `form` element:** The modal doesn't use a `<form>` tag, so native Enter-to-submit doesn't apply. All submits go through explicit button clicks.
 - **Dead CSS:** Old `.form-input`, `select.form-input`, `textarea`, `.color-field`, `.toggle-sw` definitions were removed from their original locations. A placeholder comment marks the old location to prevent accidental reuse.
 - **`pea` / `variacion_rate` in Empaque tab:** PEI appears in both Tab 3 (Características) and Tab 4 (Empaque) — intentional per original design, kept as-is.

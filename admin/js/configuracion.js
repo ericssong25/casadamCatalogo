@@ -8,6 +8,7 @@ document.addEventListener('alpine:init', function () {
       loading: true,
       savingTasas: false,
       savingDatos: false,
+      savingOcultarPrecios: false,
 
       // Forms
       tasaCOP: 4200,
@@ -19,6 +20,7 @@ document.addEventListener('alpine:init', function () {
       whatsapp: '',
       direccion: '',
       monedaDefault: 'USD',
+      ocultarPrecios: false,
 
       // === INIT ===
       async init() {
@@ -40,6 +42,7 @@ document.addEventListener('alpine:init', function () {
           this.whatsapp = r.data.whatsapp || '';
           this.direccion = r.data.direccion || '';
           this.monedaDefault = r.data.moneda_default || 'USD';
+          this.ocultarPrecios = r.data.ocultar_precios === true;
         } catch (e) { this.showToast('Error al cargar configuración', 'error'); }
         this.loading = false;
       },
@@ -108,6 +111,24 @@ document.addEventListener('alpine:init', function () {
           if (r.error) throw r.error;
           this.showToast('Moneda por defecto actualizada', 'success');
         } catch (e) { this.showToast('Error al guardar', 'error'); }
+      },
+
+      async saveOcultarPrecios() {
+        if (!this.config) return;
+        if (this.savingOcultarPrecios) return;
+        this.savingOcultarPrecios = true;
+        try {
+          var r = await window.supabaseClient.from('configuracion').update({
+            ocultar_precios: this.ocultarPrecios
+          }).eq('id', this.config.id);
+          if (r.error) throw r.error;
+          this.config.ocultar_precios = this.ocultarPrecios;
+          this.showToast(this.ocultarPrecios ? 'Precios ocultos en el catálogo público' : 'Precios visibles en el catálogo público', 'success');
+        } catch (e) {
+          this.ocultarPrecios = !this.ocultarPrecios;
+          this.showToast('Error al guardar: ' + (e.message || ''), 'error');
+        }
+        this.savingOcultarPrecios = false;
       },
 
       showToast(text, type) { window.dispatchEvent(new CustomEvent('admin-toast', { detail: { text: text, type: type || 'success' } })); }

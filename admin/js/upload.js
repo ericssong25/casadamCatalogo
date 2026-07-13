@@ -2,6 +2,23 @@
  * Casa Dam Admin — Manejo de upload de imágenes a Supabase Storage
  */
 
+// Orden estable para imágenes: por `orden` ASC, con tiebreak
+// por `created_at` ASC y luego por `id` ASC. Defensivo: se aplica
+// siempre del lado cliente aunque la consulta ya traiga ORDER BY.
+window.sortImagesByOrden = function (imgs) {
+  return (imgs || [])
+    .slice()
+    .sort(function (a, b) {
+      var oa = a.orden, ob = b.orden;
+      oa = (oa == null || isNaN(oa)) ? Number.MAX_SAFE_INTEGER : Number(oa);
+      ob = (ob == null || isNaN(ob)) ? Number.MAX_SAFE_INTEGER : Number(ob);
+      if (oa !== ob) return oa - ob;
+      var ca = a.created_at || '', cb = b.created_at || '';
+      if (ca !== cb) return ca < cb ? -1 : ca > cb ? 1 : 0;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+};
+
 async function uploadProductImage(productId, file, order) {
   var ext = file.name.split('.').pop().toLowerCase();
   var storagePath = productId + '/' + generateUUID() + '.' + ext;
@@ -96,15 +113,54 @@ async function updateProductImages(productId, images) {
     img.saved = true;
   }
 
-  // Update orden and es_principal for all active saved images
-  for (var k = 0; k < images.length; k++) {
-    var saved = images[k];
-    if (saved.saved && saved.id && !saved.toDelete) {
-      await window.supabaseClient.from('producto_imagenes').update({
-        es_principal: saved.es_principal,
-        orden: k
-      }).eq('id', saved.id);
+  // Sincronizar orden y es_principal de las imágenes activas del producto.
+  //
+  // Reglas (Casa Dam):
+  //   • posición 1 (index 0 de la lista visible) => es_principal = TRUE
+  //   • todas las demás => es_principal = FALSE
+  //   • orden va 1..N (1-based), sin huecos, sin duplicados
+  //
+  // Para evitar cualquier race entre per-row UPDATEs y el trigger
+  // `enforce_single_principal` (que mantiene la unicidad de la principal),
+  // hacemos tres fases en orden estricto:
+  //
+  //   1. Limpiar es_principal en cada fila activa (es_principal = false).
+  //   2. Re-flipar la fila en posición 0 a es_principal = true.
+  //   3. Escribir orden 1..N en cada fila activa (incluida la principal).
+  //
+  // Si una fase falla, devolvemos error y abortamos. La fase 1 deja la BD
+  // en un estado consistente (todas false); la fase 2/3 nunca se ejecuta
+  // en ese caso. Riesgo residual: si falla entre 2 y 3, queda sin principal;
+  // el siguiente reintento corrige automáticamente.
+  var active = [];
+  for (var a = 0; a < images.length; a++) {
+    if (!images[a].toDelete && images[a].id) {
+      active.push({ id: images[a].id, index: a });
     }
+  }
+  if (active.length === 0) return;
+
+  // Fase 1: limpiar principal en todas
+  for (var n = 0; n < active.length; n++) {
+    var r1 = await window.supabaseClient.from('producto_imagenes')
+      .update({ es_principal: false })
+      .eq('id', active[n].id);
+    if (r1.error) return { error: 'Fallo limpiando principal: ' + r1.error.message };
+  }
+
+  // Fase 2: marcar la primera visible como principal
+  var principalId = active[0].id;
+  var r2 = await window.supabaseClient.from('producto_imagenes')
+    .update({ es_principal: true })
+    .eq('id', principalId);
+  if (r2.error) return { error: 'Fallo marcando principal: ' + r2.error.message };
+
+  // Fase 3: escribir orden 1..N (1-based)
+  for (var k = 0; k < active.length; k++) {
+    var r3 = await window.supabaseClient.from('producto_imagenes')
+      .update({ orden: active[k].index + 1 })
+      .eq('id', active[k].id);
+    if (r3.error) return { error: 'Fallo escribiendo orden: ' + r3.error.message };
   }
 }
 

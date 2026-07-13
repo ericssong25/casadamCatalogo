@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="css/admin.css?v=20250601">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script src="js/supabase-client.js"></script>
   <script src="js/utils.js"></script>
@@ -680,7 +679,7 @@
                 </div>
 
                 <div x-show="prodStep===5">
-                  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px;">Arrastra las imágenes para reordenarlas. JPG, PNG, WebP. Máx 10 imágenes, 5 MB c/u.</p>
+                  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:12px;">Usa las flechas para reordenar las imágenes. JPG, PNG, WebP. Máx 10 imágenes, 5 MB c/u.</p>
                   <div class="image-upload-zone" x-data="{ draggingOver: false }"
                        @dragover.prevent="draggingOver = true"
                        @dragleave.prevent="draggingOver = false"
@@ -694,39 +693,52 @@
                         <i data-lucide="upload" style="width:20px;height:20px;margin-bottom:4px;"></i> Agregar imágenes
                       </div>
                     </template>
-                    <div class="image-grid-wrapper" x-show="activeImages.length>0" x-init="$nextTick(function() {
-                      var el = document.querySelector('.image-grid-sortable');
-                      if (el && window.Sortable) {
-                        new window.Sortable(el, {
-                          animation: 150,
-                          ghostClass: 'image-grid__item--dragging',
-                          onEnd: function(evt) {
-                            var item = prodImages.splice(evt.oldIndex, 1)[0];
-                            prodImages.splice(evt.newIndex, 0, item);
-                            markDirty();
-                          }
-                        });
-                      }
-                    })">
-                      <div class="image-grid image-grid-sortable">
-                        <template x-for="(img,i) in prodImages" :key="img.id || img.preview || i">
-                          <div class="image-grid__item" x-show="!img.toDelete" :data-id="i">
-                            <img :src="img.preview" draggable="false">
-                            <span class="image-grid__star"
-                                  :class="{'image-grid__star--active': img.es_principal}"
+                    <div class="image-grid-wrapper" x-show="activeImages.length>0">
+                      <ol class="image-list" aria-label="Lista de imágenes del producto">
+                        <template x-for="(img, i) in prodImages" :key="img.id || ('tmp-' + img.preview)">
+                          <li class="image-list__item" x-show="!img.toDelete">
+                            <span class="image-list__position" x-text="(i + 1)"></span>
+                            <img class="image-list__thumb" :src="img.preview" alt="" draggable="false">
+                            <div class="image-list__meta">
+                              <span class="image-list__name" x-text="img.url ? (img.url.split('/').pop()) : 'Nueva imagen'"></span>
+                              <span class="image-list__badge" x-show="img.es_principal">Principal</span>
+                              <span class="image-list__badge image-list__badge--muted" x-show="!img.es_principal">Secundaria</span>
+                            </div>
+                            <span class="image-list__star"
+                                  :class="{'image-list__star--active': img.es_principal}"
                                   @click="setPrincipalImage(i)"
-                                  :title="img.es_principal ? 'Imagen principal' : 'Marcar como principal'">
-                              <i data-lucide="star" style="width:13px;height:13px;"></i>
+                                  :title="img.es_principal ? 'Imagen principal' : 'Marcar como principal'"
+                                  role="button"
+                                  aria-label="Marcar como principal">
+                              <i data-lucide="star" style="width:14px;height:14px;"></i>
                             </span>
-                            <span class="image-grid__badge" x-show="img.es_principal">Principal</span>
-                            <span class="image-grid__remove" @click.stop="removeImage(i)" title="Eliminar imagen">
-                              <i data-lucide="x" style="width:11px;height:11px;"></i>
-                            </span>
-                          </div>
+                            <div class="image-list__controls">
+                              <button type="button" class="image-list__btn"
+                                      @click="moveImage(i, -1)"
+                                      :disabled="!puedeSubir(i)"
+                                      title="Mover arriba"
+                                      aria-label="Mover imagen arriba">
+                                <i data-lucide="chevron-up" style="width:14px;height:14px;"></i>
+                              </button>
+                              <button type="button" class="image-list__btn"
+                                      @click="moveImage(i, 1)"
+                                      :disabled="!puedeBajar(i)"
+                                      title="Mover abajo"
+                                      aria-label="Mover imagen abajo">
+                                <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+                              </button>
+                              <button type="button" class="image-list__btn image-list__btn--danger"
+                                      @click="removeImage(i)"
+                                      title="Eliminar imagen"
+                                      aria-label="Eliminar imagen">
+                                <i data-lucide="x" style="width:14px;height:14px;"></i>
+                              </button>
+                            </div>
+                          </li>
                         </template>
-                        <div class="image-grid__add" x-show="activeImages.length < 10" @click="$refs.imgInput.click()" title="Agregar imagen">
-                          <i data-lucide="plus" style="width:22px;height:22px;"></i>
-                        </div>
+                      </ol>
+                      <div class="image-grid__add" x-show="activeImages.length < 10" @click="$refs.imgInput.click()" title="Agregar imagen">
+                        <i data-lucide="plus" style="width:22px;height:22px;"></i>
                       </div>
                       <div class="image-grid__limit-note" x-show="activeImages.length >= 10">
                         Máximo 10 imágenes por producto.
@@ -1002,7 +1014,14 @@
               <div class="config-card">
                 <h3 class="config-card__title">Catálogo</h3>
                 <div class="form-group"><label>Moneda por defecto</label><select x-model="monedaDefault" class="form-input"><option>USD</option><option>COP</option><option>VES</option></select></div>
-                <button class="btn btn-secondary" @click="saveMoneda()">Guardar</button>
+                <button class="btn btn-secondary" @click="saveMoneda()">Guardar moneda</button>
+                <div class="toggle-row" style="margin-top:0.75rem;">
+                  <div>
+                    <div class="toggle-row__label">Ocultar precios en el catálogo público</div>
+                    <div class="toggle-row__helper">Si está activo, se ocultan los precios en todo el sitio público (catálogo, ficha de producto, filtros de rango y selector de moneda)</div>
+                  </div>
+                  <div class="toggle-sw" :class="{'toggle-sw--on':ocultarPrecios}" @click="ocultarPrecios=!ocultarPrecios;saveOcultarPrecios()" :title="ocultarPrecios ? 'Activado' : 'Desactivado'"></div>
+                </div>
               </div>
             </div>
           </div>

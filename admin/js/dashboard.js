@@ -23,13 +23,19 @@ document.addEventListener('alpine:init', function () {
           var cats = await window.supabaseClient.from('categorias').select('id, nombre');
           if (cats.error) throw cats.error;
 
-          var imgs = await window.supabaseClient.from('producto_imagenes').select('producto_id, url, es_principal');
+          var imgs = await window.supabaseClient.from('producto_imagenes')
+            .select('producto_id, url, es_principal, orden')
+            .order('orden', { ascending: true })
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true });
           if (imgs.error) throw imgs.error;
 
           var prods = all.data || [];
           var imgMap = {};
           (imgs.data || []).forEach(function (i) {
-            if (!imgMap[i.producto_id] || i.es_principal) imgMap[i.producto_id] = i;
+            // Como ya vienen ordenados por `orden` ASC, el primero que
+            // aparece para un producto es la principal (orden=1).
+            if (!imgMap[i.producto_id]) imgMap[i.producto_id] = i;
           });
 
           var sinImg = prods.filter(function (p) { return !imgMap[p.id]; });
