@@ -358,11 +358,11 @@
                     <span class="badge-status badge-status--featured" x-show="p.destacado">★</span>
                   </td>
                   <td><div class="actions">
-                    <button class="action-btn" @click="openProdModal('view',p)" title="Ver"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>
-                    <button class="toggle-mini" :class="{'toggle-mini--on':p.disponible}" @click="toggleDisponible(p)" :title="p.disponible?'Disponible':'No disponible'"></button>
-                    <button class="action-btn" @click="openProdModal('edit',p)" title="Editar"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
-                    <button class="action-btn" @click="duplicateProduct(p)" title="Duplicar"><i data-lucide="copy" style="width:14px;height:14px;"></i></button>
-                    <button class="action-btn action-btn--danger" @click="confirmDelete(p)" title="Eliminar"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
+                    <button class="action-btn" @click="openProdModal('view',p)" title="Ver" aria-label="Ver producto"><i data-lucide="eye" style="width:14px;height:14px;"></i></button>
+                    <button class="toggle-mini" :class="{'toggle-mini--on':p.disponible}" @click="toggleDisponible(p)" :title="p.disponible?'Disponible':'No disponible'" :aria-label="(p.disponible?'Quitar disponible':'Marcar disponible')" :aria-pressed="p.disponible"></button>
+                    <button class="action-btn" @click="openProdModal('edit',p)" title="Editar" aria-label="Editar producto"><i data-lucide="pencil" style="width:14px;height:14px;"></i></button>
+                    <button class="action-btn" @click="duplicateProduct(p)" title="Duplicar" aria-label="Duplicar producto"><i data-lucide="copy" style="width:14px;height:14px;"></i></button>
+                    <button class="action-btn action-btn--danger" @click="confirmDelete(p)" title="Eliminar" aria-label="Eliminar producto"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
                   </div></td>
                 </tr></template>
               </tbody>

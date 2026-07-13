@@ -338,9 +338,8 @@ input, textarea, select { font: inherit; }
   background: var(--color-bg);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
-  overflow: hidden;
+  overflow: auto;
   max-height: 70vh;
-  overflow-y: auto;
 }
 
 .data-table { width: 100%; border-collapse: collapse; }
@@ -364,7 +363,7 @@ input, textarea, select { font: inherit; }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tbody tr:hover { background: var(--color-bg-light); }
 
-.col-actions { width: 90px; text-align: right; }
+.col-actions { width: 200px; text-align: right; }
 
 .data-table .actions {
   display: flex; gap: 4px; justify-content: flex-end;
@@ -373,16 +372,30 @@ input, textarea, select { font: inherit; }
 .action-btn {
   padding: 4px 6px; border-radius: var(--radius-xs);
   color: var(--color-text-secondary);
-  transition: background var(--transition), color var(--transition);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
   display: flex; align-items: center; justify-content: center;
 }
 .action-btn:hover { background: var(--color-bg-light); color: var(--color-text); }
+.action-btn:focus-visible {
+  outline: none;
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
 .action-btn--danger:hover { color: var(--color-error); background: var(--color-error-light); }
+.action-btn--danger:focus-visible {
+  outline: none;
+  background: var(--color-error-light);
+  color: var(--color-error);
+  box-shadow: 0 0 0 2px var(--color-error);
+}
 
-/* Action buttons only visible on row hover (desktop) */
-@media (hover: hover) {
-  .data-table tbody .actions { opacity: 0; transition: opacity 100ms ease; }
-  .data-table tbody tr:hover .actions { opacity: 1; }
+.toggle-mini:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 /* Code chip */
@@ -913,7 +926,6 @@ textarea:focus:not(:focus-visible) {
 
   .section-heading { font-size: 16px; }
 
-  .data-table .actions { opacity: 1 !important; }
   .sub-item { flex-wrap: wrap; gap: 8px; }
 
   /* ====================================
